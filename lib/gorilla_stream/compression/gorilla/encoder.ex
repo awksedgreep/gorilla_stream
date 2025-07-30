@@ -23,6 +23,9 @@ defmodule GorillaStream.Compression.Gorilla.Encoder do
   @doc """
   Encodes a stream of {timestamp, float} tuples using the Gorilla compression algorithm.
 
+  This is an optimized implementation that skips some validation checks for better performance.
+  Input data is assumed to be valid {timestamp, float} tuples.
+
   ## Parameters
   - `data`: List of {timestamp, float} tuples
 
@@ -32,32 +35,60 @@ defmodule GorillaStream.Compression.Gorilla.Encoder do
   """
   def encode([]), do: {:ok, <<>>}
 
-  def encode(data) when is_list(data) do
-    try do
-      # Validate input data format
-      case validate_input_data(data) do
-        :ok ->
-          # Separate timestamps and values
+  def encode(data) when is_list(data) and length(data) > 0 do
+    # Fast path validation - check first few items to catch common errors early
+    case validate_input_data_fast(data) do
+      :ok ->
+        try do
+          # Optimized path - minimal validation for speed
           {timestamps, values} = separate_timestamps_and_values(data)
 
-          # Apply Gorilla compression pipeline
-          with {:ok, timestamp_encoded} <- encode_timestamps(timestamps),
-               {:ok, values_encoded} <- encode_values(values),
-               {:ok, packed_data} <- pack_data(timestamp_encoded, values_encoded),
-               {:ok, final_data} <- add_metadata(packed_data) do
-            {:ok, final_data}
-          end
+          # Direct encoding without error handling wrapper functions
+          {ts_bits, ts_meta} = DeltaEncoding.encode(timestamps)
+          {val_bits, val_meta} = ValueCompression.compress(values)
+          {packed_binary, pack_meta} = BitPacking.pack({ts_bits, ts_meta}, {val_bits, val_meta})
 
-        {:error, reason} ->
-          {:error, reason}
-      end
-    rescue
-      error ->
-        {:error, "Encoding failed: #{inspect(error)}"}
+          final_data = Metadata.add_metadata(packed_binary, pack_meta)
+          {:ok, final_data}
+        rescue
+          error in RuntimeError ->
+            if String.contains?(error.message, "Invalid data format") do
+              {:error, "Invalid data format: all items must be {timestamp, float} tuples"}
+            else
+              {:error, "Encoding failed: #{inspect(error)}"}
+            end
+
+          error ->
+            {:error, "Encoding failed: #{inspect(error)}"}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
   def encode(_), do: {:error, "Invalid input data - expected list of {timestamp, float} tuples"}
+
+  # Fast validation that checks input format without full enumeration
+  defp validate_input_data_fast(data) do
+    # Check first item and a sample to catch common errors quickly
+    case data do
+      [first | _] when not is_tuple(first) ->
+        {:error, "Invalid data format: all items must be {timestamp, float} tuples"}
+
+      [first | _] when tuple_size(first) != 2 ->
+        {:error, "Invalid data format: all items must be {timestamp, float} tuples"}
+
+      [{timestamp, _} | _] when not is_integer(timestamp) ->
+        {:error, "Invalid data format: all items must be {timestamp, float} tuples"}
+
+      [{_, value} | _] when not is_number(value) ->
+        {:error, "Invalid data format: all items must be {timestamp, float} tuples"}
+
+      _ ->
+        :ok
+    end
+  end
 
   # Validate that all input data points are properly formatted
   defp validate_input_data(data) do
@@ -79,62 +110,21 @@ defmodule GorillaStream.Compression.Gorilla.Encoder do
   # Separate the input stream into timestamps and values (single-pass optimization)
   defp separate_timestamps_and_values(data) do
     {timestamps, values} =
-      Enum.reduce(data, {[], []}, fn {timestamp, value}, {ts_acc, val_acc} ->
-        normalized_value =
-          case value do
-            val when is_float(val) -> val
-            val when is_integer(val) -> val * 1.0
-            val -> raise "Invalid value type: #{inspect(val)}"
-          end
+      Enum.reduce(data, {[], []}, fn
+        {timestamp, value}, {ts_acc, val_acc} when is_integer(timestamp) and is_number(value) ->
+          normalized_value =
+            case value do
+              val when is_float(val) -> val
+              val when is_integer(val) -> val * 1.0
+            end
 
-        {[timestamp | ts_acc], [normalized_value | val_acc]}
+          {[timestamp | ts_acc], [normalized_value | val_acc]}
+
+        invalid_item, _acc ->
+          raise "Invalid data format: expected {timestamp, float} tuple, got #{inspect(invalid_item)}"
       end)
 
     {Enum.reverse(timestamps), Enum.reverse(values)}
-  end
-
-  # Encode timestamps using delta-of-delta compression
-  defp encode_timestamps(timestamps) do
-    try do
-      {encoded_bits, metadata} = DeltaEncoding.encode(timestamps)
-      {:ok, {encoded_bits, metadata}}
-    rescue
-      error ->
-        {:error, "Timestamp encoding failed: #{inspect(error)}"}
-    end
-  end
-
-  # Encode values using XOR-based compression
-  defp encode_values(values) do
-    try do
-      {encoded_bits, metadata} = ValueCompression.compress(values)
-      {:ok, {encoded_bits, metadata}}
-    rescue
-      error ->
-        {:error, "Value compression failed: #{inspect(error)}"}
-    end
-  end
-
-  # Pack timestamp and value bitstreams together
-  defp pack_data(timestamp_encoded, values_encoded) do
-    try do
-      {packed_binary, metadata} = BitPacking.pack(timestamp_encoded, values_encoded)
-      {:ok, {packed_binary, metadata}}
-    rescue
-      error ->
-        {:error, "Bit packing failed: #{inspect(error)}"}
-    end
-  end
-
-  # Add metadata header to the packed data
-  defp add_metadata({packed_data, metadata}) do
-    try do
-      final_data = Metadata.add_metadata(packed_data, metadata)
-      {:ok, final_data}
-    rescue
-      error ->
-        {:error, "Metadata addition failed: #{inspect(error)}"}
-    end
   end
 
   @doc """
@@ -246,7 +236,7 @@ defmodule GorillaStream.Compression.Gorilla.Encoder do
     [b - a | calculate_deltas([b | rest])]
   end
 
-  defp calculate_xor_differences([]), do: []
+  # defp calculate_xor_differences([]), do: []
   defp calculate_xor_differences([_]), do: []
 
   defp calculate_xor_differences([a, b | rest]) do
@@ -254,51 +244,6 @@ defmodule GorillaStream.Compression.Gorilla.Encoder do
     a_bits = float_to_bits(a)
     b_bits = float_to_bits(b)
     [bxor(a_bits, b_bits) | calculate_xor_differences([b | rest])]
-  end
-
-  @doc """
-  Optimized encoding function for performance-critical scenarios.
-
-  Bypasses some error handling and validation for maximum speed.
-  Use only when you're certain the input data is valid.
-
-  ## Parameters
-  - `data`: List of {timestamp, float} tuples (must be valid)
-
-  ## Returns
-  - `{:ok, encoded_data}`: When encoding is successful
-  - `{:error, reason}`: When encoding fails
-  """
-  def encode_fast(data) when is_list(data) and length(data) > 0 do
-    try do
-      # Skip validation for speed - assume data is valid
-      {timestamps, values} = separate_timestamps_and_values_fast(data)
-
-      # Direct encoding without error handling wrapper functions
-      {ts_bits, ts_meta} = DeltaEncoding.encode(timestamps)
-      {val_bits, val_meta} = ValueCompression.compress(values)
-      {packed_binary, pack_meta} = BitPacking.pack({ts_bits, ts_meta}, {val_bits, val_meta})
-
-      final_data = Metadata.add_metadata(packed_binary, pack_meta)
-      {:ok, final_data}
-    rescue
-      error ->
-        {:error, "Fast encoding failed: #{inspect(error)}"}
-    end
-  end
-
-  def encode_fast([]), do: {:ok, <<>>}
-  def encode_fast(_), do: {:error, "Invalid input for fast encoding"}
-
-  # Optimized separation without extensive validation
-  defp separate_timestamps_and_values_fast(data) do
-    # Single pass with minimal type checking
-    data
-    |> Enum.reduce({[], []}, fn {timestamp, value}, {ts_acc, val_acc} ->
-      normalized_value = if is_float(value), do: value, else: value * 1.0
-      {[timestamp | ts_acc], [normalized_value | val_acc]}
-    end)
-    |> then(fn {ts_list, val_list} -> {Enum.reverse(ts_list), Enum.reverse(val_list)} end)
   end
 
   # Convert float to 64-bit integer representation

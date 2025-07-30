@@ -1,6 +1,7 @@
 # Gorilla Stream Library - User Guide
 
 ## Table of Contents
+
 1. [Introduction](#introduction)
 2. [Installation](#installation)
 3. [Quick Start](#quick-start)
@@ -27,12 +28,14 @@ The Gorilla Stream Library is a high-performance, lossless compression library s
 ### When to Use Gorilla Compression
 
 ✅ **Ideal for:**
+
 - Time series monitoring data (CPU, memory, temperature sensors)
-- Financial tick data with gradual price changes  
+- Financial tick data with gradual price changes
 - IoT sensor readings with regular intervals
 - System metrics with slowly changing values
 
 ❌ **Not optimal for:**
+
 - Completely random data with no patterns
 - Text or binary data (use general-purpose compression)
 - Data with frequent large jumps between values
@@ -44,12 +47,13 @@ Add `gorilla_stream` to your `mix.exs` dependencies:
 ```elixir
 def deps do
   [
-    {:gorilla_stream, "~> 1.0"}
+    {:gorilla_stream, "~> 1.1"}
   ]
 end
 ```
 
 Then run:
+
 ```bash
 mix deps.get
 ```
@@ -68,11 +72,11 @@ data = [
   {1609459440, 23.8}
 ]
 
-# Compress the data
-{:ok, compressed} = GorillaStream.Compression.Gorilla.compress(data, false)
+# Compress the data (simple API)
+{:ok, compressed} = GorillaStream.compress(data)
 
 # Decompress back to original
-{:ok, decompressed} = GorillaStream.Compression.Gorilla.decompress(compressed, false)
+{:ok, decompressed} = GorillaStream.decompress(compressed)
 
 # Verify lossless compression
 decompressed == data  # => true
@@ -82,29 +86,85 @@ decompressed == data  # => true
 
 ```elixir
 # Enable additional zlib compression for even better ratios
-{:ok, compressed} = GorillaStream.Compression.Gorilla.compress(data, true)
-{:ok, decompressed} = GorillaStream.Compression.Gorilla.decompress(compressed, true)
+{:ok, compressed} = GorillaStream.compress(data, true)
+{:ok, decompressed} = GorillaStream.decompress(compressed, true)
+```
+
+### Advanced API
+
+For more control, you can use the full module path:
+
+```elixir
+# Direct access to the underlying implementation
+{:ok, compressed} = GorillaStream.Compression.Gorilla.compress(data, false)
+{:ok, decompressed} = GorillaStream.Compression.Gorilla.decompress(compressed, false)
 ```
 
 ## API Reference
 
-### Main Functions
+### Simple API (Recommended)
 
-#### `GorillaStream.Compression.Gorilla.compress/2`
+#### `GorillaStream.compress/2`
 
 Compresses time series data using the Gorilla algorithm.
 
 **Parameters:**
+
 - `data` - List of `{timestamp, value}` tuples where:
   - `timestamp` - Integer (Unix timestamp or sequence number)
   - `value` - Float (the measurement value)
-- `use_zlib` - Boolean (whether to apply additional zlib compression)
+- `zlib_compression?` - Optional boolean to enable additional zlib compression (default: false)
 
 **Returns:**
+
 - `{:ok, compressed_binary}` - Success with compressed data
 - `{:error, reason}` - Error with description
 
 **Example:**
+
+```elixir
+data = [{1609459200, 42.5}, {1609459201, 42.7}]
+{:ok, compressed} = GorillaStream.compress(data)
+```
+
+#### `GorillaStream.decompress/2`
+
+Decompresses Gorilla-compressed data back to original format.
+
+**Parameters:**
+
+- `compressed_data` - Binary data from compress/2
+- `zlib_compression?` - Boolean (must match the compress call, default: false)
+
+**Returns:**
+
+- `{:ok, decompressed_data}` - List of `{timestamp, value}` tuples
+- `{:error, reason}` - Error with description
+
+**Example:**
+
+```elixir
+{:ok, original_data} = GorillaStream.decompress(compressed)
+```
+
+### Advanced API
+
+#### `GorillaStream.Compression.Gorilla.compress/2`
+
+Low-level compression function with same signature as simple API.
+
+**Parameters:**
+
+- `data` - List of `{timestamp, value}` tuples
+- `zlib_compression?` - Boolean (whether to apply additional zlib compression)
+
+**Returns:**
+
+- `{:ok, compressed_binary}` - Success with compressed data
+- `{:error, reason}` - Error with description
+
+**Example:**
+
 ```elixir
 data = [{1609459200, 42.5}, {1609459201, 42.7}]
 {:ok, compressed} = GorillaStream.Compression.Gorilla.compress(data, false)
@@ -115,14 +175,17 @@ data = [{1609459200, 42.5}, {1609459201, 42.7}]
 Decompresses Gorilla-compressed data back to original format.
 
 **Parameters:**
+
 - `compressed_data` - Binary data from compress/2
-- `use_zlib` - Boolean (must match the compress call)
+- `zlib_compression?` - Boolean (must match the compress call)
 
 **Returns:**
+
 - `{:ok, decompressed_data}` - List of `{timestamp, value}` tuples
 - `{:error, reason}` - Error with description
 
 **Example:**
+
 ```elixir
 {:ok, original_data} = GorillaStream.Compression.Gorilla.decompress(compressed, false)
 ```
@@ -160,12 +223,12 @@ Low-level decoding function.
 
 ### Compression Performance by Data Pattern
 
-| Data Pattern | Compression Ratio | Encoding Speed | Decoding Speed |
-|--------------|-------------------|----------------|----------------|
-| Identical values | 42x (2.4%) | 10M+ points/sec | 600K points/sec |
-| Gradual changes | 1.9x (53%) | 1.8M points/sec | 500K points/sec |
-| Step functions | 39x (2.6%) | 10M+ points/sec | 600K points/sec |
-| Random walk | 1.9x (53%) | 1.8M points/sec | 500K points/sec |
+| Data Pattern     | Compression Ratio | Encoding Speed  | Decoding Speed  |
+| ---------------- | ----------------- | --------------- | --------------- |
+| Identical values | 42x (2.4%)        | 10M+ points/sec | 600K points/sec |
+| Gradual changes  | 1.9x (53%)        | 1.8M points/sec | 500K points/sec |
+| Step functions   | 39x (2.6%)        | 10M+ points/sec | 600K points/sec |
+| Random walk      | 1.9x (53%)        | 1.8M points/sec | 500K points/sec |
 
 ### Performance Optimization Tips
 
@@ -192,7 +255,7 @@ Comparison with alternatives:
 ### Memory Usage Guidelines
 
 - **Small datasets** (< 1K points): < 1MB memory usage
-- **Medium datasets** (1K-10K points): 1-10MB memory usage  
+- **Medium datasets** (1K-10K points): 1-10MB memory usage
 - **Large datasets** (10K-100K points): 10-50MB memory usage
 - **Very large datasets** (100K+ points): Scale linearly
 
@@ -201,6 +264,7 @@ Comparison with alternatives:
 ### Excellent Compression (90%+ reduction)
 
 **Identical Values:**
+
 ```elixir
 # Temperature sensor with stable reading
 data = [
@@ -213,6 +277,7 @@ data = [
 ```
 
 **Step Functions:**
+
 ```elixir
 # System states or discrete levels
 data = [
@@ -229,6 +294,7 @@ data = [
 ### Good Compression (40-70% reduction)
 
 **Gradual Changes:**
+
 ```elixir
 # Temperature rising slowly
 data = [
@@ -241,6 +307,7 @@ data = [
 ```
 
 **Seasonal Patterns:**
+
 ```elixir
 # Daily temperature cycle
 data = for i <- 0..1440 do  # 24 hours, every minute
@@ -253,6 +320,7 @@ end
 ### Poor Compression (< 30% reduction)
 
 **Random Data:**
+
 ```elixir
 # Completely random values
 data = for i <- 0..100 do
@@ -269,10 +337,10 @@ end
 
 ```elixir
 # Wrong data format
-{:error, "Invalid input data"} = 
+{:error, "Invalid input data"} =
   GorillaStream.Compression.Gorilla.compress("not_a_list", false)
 
-# Invalid tuple structure  
+# Invalid tuple structure
 {:error, "Invalid data format: expected {timestamp, float} tuple"} =
   GorillaStream.Compression.Gorilla.compress([{1, 2, 3}], false)
 
@@ -286,11 +354,11 @@ end
 ```elixir
 # Handle encoding errors gracefully
 case GorillaStream.Compression.Gorilla.compress(data, false) do
-  {:ok, compressed} -> 
+  {:ok, compressed} ->
     # Process compressed data
     IO.puts("Compressed #{length(data)} points")
-    
-  {:error, reason} -> 
+
+  {:error, reason} ->
     # Log error and handle gracefully
     Logger.error("Compression failed: #{reason}")
     {:error, :compression_failed}
@@ -304,7 +372,7 @@ end
 case GorillaStream.Compression.Gorilla.decompress(compressed_data, false) do
   {:ok, decompressed} ->
     {:ok, decompressed}
-    
+
   {:error, reason} ->
     Logger.warning("Decompression failed: #{reason}")
     # Return empty data or retry with backup
@@ -317,11 +385,13 @@ end
 ### Data Preparation
 
 1. **Sort by Timestamp**: Ensure data is sorted by timestamp for optimal compression
+
 ```elixir
 data = Enum.sort_by(unsorted_data, fn {timestamp, _value} -> timestamp end)
 ```
 
 2. **Validate Data Types**: Ensure consistent data types
+
 ```elixir
 def validate_data_point({timestamp, value}) when is_integer(timestamp) and is_number(value) do
   {timestamp, value * 1.0}  # Convert to float
@@ -329,6 +399,7 @@ end
 ```
 
 3. **Handle Missing Values**: Decide on strategy for gaps in data
+
 ```elixir
 # Option 1: Interpolate missing values
 # Option 2: Use special sentinel values
@@ -338,6 +409,7 @@ end
 ### Production Usage
 
 1. **Error Handling**: Always wrap compression calls in error handling
+
 ```elixir
 def safe_compress(data) do
   case GorillaStream.Compression.Gorilla.compress(data, false) do
@@ -348,22 +420,24 @@ end
 ```
 
 2. **Monitoring**: Track compression ratios and performance
+
 ```elixir
 def compress_with_metrics(data) do
   original_size = length(data) * 16  # 8 bytes timestamp + 8 bytes float
-  
+
   case GorillaStream.Compression.Gorilla.compress(data, false) do
-    {:ok, compressed} -> 
+    {:ok, compressed} ->
       ratio = byte_size(compressed) / original_size
       :telemetry.execute(:gorilla_compression, %{ratio: ratio, points: length(data)})
       {:ok, compressed}
-      
+
     error -> error
   end
 end
 ```
 
 3. **Batch Processing**: Process data in optimal batch sizes
+
 ```elixir
 def compress_large_dataset(data) do
   data
@@ -376,6 +450,7 @@ end
 ### Memory Management
 
 1. **Stream Processing**: For very large datasets, consider streaming
+
 ```elixir
 def compress_stream(data_stream) do
   data_stream
@@ -386,6 +461,7 @@ end
 ```
 
 2. **Garbage Collection**: Force GC for long-running processes
+
 ```elixir
 def compress_with_gc(data) do
   result = GorillaStream.Compression.Gorilla.compress(data, false)
@@ -400,6 +476,7 @@ end
 
 **Problem**: Slow compression/decompression
 **Solutions:**
+
 - Reduce batch size to 1,000-5,000 points
 - Check for memory pressure
 - Verify data is properly sorted by timestamp
@@ -407,6 +484,7 @@ end
 
 **Problem**: Poor compression ratios
 **Solutions:**
+
 - Analyze your data patterns (use `estimate_compression_ratio/1`)
 - Ensure timestamps are in ascending order
 - Check for outliers or noise in the data
@@ -416,6 +494,7 @@ end
 
 **Problem**: High memory usage
 **Solutions:**
+
 - Process data in smaller batches
 - Use streaming for very large datasets
 - Force garbage collection between batches
@@ -425,6 +504,7 @@ end
 
 **Problem**: Compression fails with format errors
 **Solutions:**
+
 - Validate all data points before compression
 - Ensure timestamps are integers and values are numbers
 - Check for NaN or infinity values
@@ -432,12 +512,12 @@ end
 
 ### Common Error Messages
 
-| Error Message | Cause | Solution |
-|---------------|--------|----------|
-| "Invalid input data" | Non-list input | Pass a list of tuples |
-| "Invalid data format" | Wrong tuple structure | Use `{timestamp, value}` format |
-| "expected {timestamp, float} tuple" | Wrong data types | Ensure integer timestamps, numeric values |
-| "Insufficient data for initial values" | Corrupted compressed data | Check data integrity |
+| Error Message                          | Cause                     | Solution                                  |
+| -------------------------------------- | ------------------------- | ----------------------------------------- |
+| "Invalid input data"                   | Non-list input            | Pass a list of tuples                     |
+| "Invalid data format"                  | Wrong tuple structure     | Use `{timestamp, value}` format           |
+| "expected {timestamp, float} tuple"    | Wrong data types          | Ensure integer timestamps, numeric values |
+| "Insufficient data for initial values" | Corrupted compressed data | Check data integrity                      |
 
 ## Examples
 
@@ -448,13 +528,13 @@ end
 ```elixir
 defmodule TemperatureMonitor do
   alias GorillaStream.Compression.Gorilla
-  
+
   def compress_hourly_readings(sensor_id, readings) do
     # Convert to required format
     data = Enum.map(readings, fn reading ->
       {reading.timestamp, reading.temperature}
     end)
-    
+
     case Gorilla.compress(data, true) do  # Use zlib for better compression
       {:ok, compressed} ->
         # Store compressed data with metadata
@@ -465,13 +545,13 @@ defmodule TemperatureMonitor do
           compressed_size: byte_size(compressed),
           compression_ratio: byte_size(compressed) / (length(data) * 16)
         }
-        
+
       {:error, reason} ->
         Logger.error("Failed to compress readings for sensor #{sensor_id}: #{reason}")
         {:error, reason}
     end
   end
-  
+
   def decompress_readings(compressed_record) do
     case Gorilla.decompress(compressed_record.compressed_data, true) do
       {:ok, data} ->
@@ -480,7 +560,7 @@ defmodule TemperatureMonitor do
           %Reading{timestamp: timestamp, temperature: temperature}
         end)
         {:ok, readings}
-        
+
       {:error, reason} ->
         {:error, reason}
     end
@@ -493,21 +573,21 @@ end
 ```elixir
 defmodule TickDataProcessor do
   alias GorillaStream.Compression.Gorilla
-  
+
   def compress_price_data(symbol, ticks) do
     # Process price data
     price_data = Enum.map(ticks, fn tick ->
       {tick.timestamp, tick.price}
     end)
-    
+
     # Process volume data separately (different compression characteristics)
     volume_data = Enum.map(ticks, fn tick ->
       {tick.timestamp, tick.volume}
     end)
-    
+
     with {:ok, compressed_prices} <- Gorilla.compress(price_data, false),
          {:ok, compressed_volumes} <- Gorilla.compress(volume_data, false) do
-      
+
       {:ok, %{
         symbol: symbol,
         price_data: compressed_prices,
@@ -518,15 +598,15 @@ defmodule TickDataProcessor do
       error -> error
     end
   end
-  
+
   def analyze_compression_efficiency(ticks) do
     price_data = Enum.map(ticks, fn tick -> {tick.timestamp, tick.price} end)
-    
+
     {:ok, ratio} = Gorilla.estimate_compression_ratio(price_data)
-    
+
     cond do
       ratio < 0.3 -> :excellent_compression
-      ratio < 0.6 -> :good_compression  
+      ratio < 0.6 -> :good_compression
       ratio < 0.8 -> :moderate_compression
       true -> :poor_compression
     end
@@ -539,7 +619,7 @@ end
 ```elixir
 defmodule IoTDataPipeline do
   alias GorillaStream.Compression.Gorilla
-  
+
   def process_sensor_batch(sensors_data) do
     # Process multiple sensors concurrently
     sensors_data
@@ -548,16 +628,16 @@ defmodule IoTDataPipeline do
     end, max_concurrency: 10)
     |> Enum.map(fn {:ok, result} -> result end)
   end
-  
+
   defp compress_sensor_data(sensor_id, readings) do
     # Convert readings to time series format
     data = Enum.map(readings, fn reading ->
       {reading.timestamp, reading.value}
     end)
-    
+
     # Estimate compression first
     {:ok, estimated_ratio} = Gorilla.estimate_compression_ratio(data)
-    
+
     # Only compress if we expect good compression
     if estimated_ratio < 0.8 do
       case Gorilla.compress(data, false) do
@@ -569,7 +649,7 @@ defmodule IoTDataPipeline do
             estimated_ratio: estimated_ratio,
             actual_ratio: byte_size(compressed) / (length(data) * 16)
           }}
-          
+
         error -> error
       end
     else
@@ -590,25 +670,25 @@ end
 ```elixir
 defmodule MetricsArchival do
   alias GorillaStream.Compression.Gorilla
-  
+
   def archive_daily_metrics(date, metrics) do
-    # Group metrics by type for better compression  
+    # Group metrics by type for better compression
     grouped_metrics = Enum.group_by(metrics, & &1.metric_type)
-    
-    compressed_metrics = 
+
+    compressed_metrics =
       for {metric_type, metric_list} <- grouped_metrics do
         data = Enum.map(metric_list, fn m -> {m.timestamp, m.value} end)
-        
+
         {:ok, compressed} = Gorilla.compress(data, true)  # Use zlib for archival
-        
+
         {metric_type, %{
           compressed_data: compressed,
           point_count: length(data),
           compression_ratio: byte_size(compressed) / (length(data) * 16)
         }}
       end
-    
-    # Store archive record  
+
+    # Store archive record
     %{
       date: date,
       metrics: Map.new(compressed_metrics),
@@ -616,14 +696,14 @@ defmodule MetricsArchival do
       archived_at: DateTime.utc_now()
     }
   end
-  
+
   def retrieve_metrics(archive_record, metric_types) do
-    retrieved_metrics = 
+    retrieved_metrics =
       for metric_type <- metric_types,
           archived_metric = archive_record.metrics[metric_type] do
-        
+
         {:ok, data} = Gorilla.decompress(archived_metric.compressed_data, true)
-        
+
         metrics = Enum.map(data, fn {timestamp, value} ->
           %Metric{
             timestamp: timestamp,
@@ -631,10 +711,10 @@ defmodule MetricsArchival do
             value: value
           }
         end)
-        
+
         {metric_type, metrics}
       end
-    
+
     Map.new(retrieved_metrics)
   end
 end
@@ -648,26 +728,26 @@ end
 defmodule CompressionWorker do
   use GenServer
   alias GorillaStream.Compression.Gorilla
-  
+
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
-  
+
   def compress_async(data) do
     GenServer.cast(__MODULE__, {:compress, data, self()})
   end
-  
+
   def init(_opts) do
     {:ok, %{}}
   end
-  
+
   def handle_cast({:compress, data, caller}, state) do
     # Perform compression in background
     Task.start(fn ->
       result = Gorilla.compress(data, false)
       send(caller, {:compression_result, result})
     end)
-    
+
     {:noreply, state}
   end
 end
@@ -679,23 +759,23 @@ end
 defmodule MyAppWeb.MetricsLive do
   use MyAppWeb, :live_view
   alias GorillaStream.Compression.Gorilla
-  
+
   def handle_event("compress_data", %{"data" => raw_data}, socket) do
     parsed_data = Jason.decode!(raw_data)
     data = Enum.map(parsed_data, fn [ts, val] -> {ts, val} end)
-    
+
     case Gorilla.compress(data, false) do
       {:ok, compressed} ->
         compression_ratio = byte_size(compressed) / (length(data) * 16)
-        
-        socket = 
+
+        socket =
           socket
           |> assign(:compressed_data, compressed)
           |> assign(:compression_ratio, compression_ratio)
           |> put_flash(:info, "Data compressed successfully!")
-        
+
         {:noreply, socket}
-        
+
       {:error, reason} ->
         socket = put_flash(socket, :error, "Compression failed: #{reason}")
         {:noreply, socket}

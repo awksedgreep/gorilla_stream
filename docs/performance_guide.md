@@ -1,6 +1,7 @@
 # Gorilla Stream Library - Performance Guide
 
 ## Table of Contents
+
 1. [Performance Overview](#performance-overview)
 2. [Benchmark Results](#benchmark-results)
 3. [Optimization Strategies](#optimization-strategies)
@@ -28,46 +29,47 @@ The Gorilla Stream Library is designed for high-performance time series compress
 
 ### Compression Ratio by Data Pattern
 
-| Pattern | Compression Ratio | Original Size | Compressed Size | Reduction |
-|---------|-------------------|---------------|-----------------|-----------|
-| Identical values | 0.024 (2.4%) | 16,000 bytes | 379 bytes | 97.6% |
-| Step function | 0.026 (2.6%) | 16,000 bytes | 412 bytes | 97.4% |
-| Gradual increase | 0.531 (53.1%) | 16,000 bytes | 8,496 bytes | 46.9% |
-| Sine wave | 0.531 (53.1%) | 16,000 bytes | 8,496 bytes | 46.9% |
-| Random walk | 0.531 (53.1%) | 16,000 bytes | 8,496 bytes | 46.9% |
-| High frequency | 0.531 (53.1%) | 16,000 bytes | 8,496 bytes | 46.9% |
+| Pattern          | Compression Ratio | Original Size | Compressed Size | Reduction |
+| ---------------- | ----------------- | ------------- | --------------- | --------- |
+| Identical values | 0.024 (2.4%)      | 16,000 bytes  | 379 bytes       | 97.6%     |
+| Step function    | 0.026 (2.6%)      | 16,000 bytes  | 412 bytes       | 97.4%     |
+| Gradual increase | 0.531 (53.1%)     | 16,000 bytes  | 8,496 bytes     | 46.9%     |
+| Sine wave        | 0.531 (53.1%)     | 16,000 bytes  | 8,496 bytes     | 46.9%     |
+| Random walk      | 0.531 (53.1%)     | 16,000 bytes  | 8,496 bytes     | 46.9%     |
+| High frequency   | 0.531 (53.1%)     | 16,000 bytes  | 8,496 bytes     | 46.9%     |
 
 ### Encoding Performance by Dataset Size
 
-| Dataset Size | Encode Rate (points/sec) | Encode Time | Memory Usage |
-|--------------|-------------------------|-------------|--------------|
-| 100 points | 1,470,588 | 68μs | 959 bytes |
-| 500 points | 1,805,054 | 277μs | 4,309 bytes |
-| 1,000 points | 1,811,594 | 552μs | 8,496 bytes |
-| 5,000 points | 1,806,358 | 2.8ms | 41,996 bytes |
-| 10,000 points | 1,768,034 | 5.7ms | 83,871 bytes |
+| Dataset Size  | Encode Rate (points/sec) | Encode Time | Memory Usage |
+| ------------- | ------------------------ | ----------- | ------------ |
+| 100 points    | 1,470,588                | 68μs        | 959 bytes    |
+| 500 points    | 1,805,054                | 277μs       | 4,309 bytes  |
+| 1,000 points  | 1,811,594                | 552μs       | 8,496 bytes  |
+| 5,000 points  | 1,806,358                | 2.8ms       | 41,996 bytes |
+| 10,000 points | 1,768,034                | 5.7ms       | 83,871 bytes |
 
 ### Decoding Performance by Dataset Size
 
-| Dataset Size | Decode Rate (points/sec) | Decode Time | Pattern Dependent |
-|--------------|-------------------------|-------------|-------------------|
-| 100 points | 2,222,222 | 45μs | Excellent for all patterns |
-| 500 points | 917,431 | 545μs | Good for most patterns |
-| 1,000 points | 517,598 | 1.9ms | Varies by complexity |
-| 5,000 points | 111,416 | 45ms | Complex patterns slower |
-| 10,000 points | 49,427 | 202ms | Large datasets need tuning |
+| Dataset Size  | Decode Rate (points/sec) | Decode Time | Pattern Dependent          |
+| ------------- | ------------------------ | ----------- | -------------------------- |
+| 100 points    | 2,222,222                | 45μs        | Excellent for all patterns |
+| 500 points    | 917,431                  | 545μs       | Good for most patterns     |
+| 1,000 points  | 517,598                  | 1.9ms       | Varies by complexity       |
+| 5,000 points  | 111,416                  | 45ms        | Complex patterns slower    |
+| 10,000 points | 49,427                   | 202ms       | Large datasets need tuning |
 
 ### Comparison with Other Compression Methods
 
 **Test Dataset**: 5,000 realistic sensor data points
 
-| Method | Compressed Size | Ratio | Encode Time | Decode Time |
-|--------|-----------------|-------|-------------|-------------|
-| Gorilla | 41,996 bytes | 52.5% | 2.8ms | 51ms |
-| Zlib | 53,475 bytes | 66.8% | 5.8ms | 0.5ms |
-| Raw Binary | 80,007 bytes | 100% | 0.2ms | 0.3ms |
+| Method     | Compressed Size | Ratio | Encode Time | Decode Time |
+| ---------- | --------------- | ----- | ----------- | ----------- |
+| Gorilla    | 41,996 bytes    | 52.5% | 2.8ms       | 51ms        |
+| Zlib       | 53,475 bytes    | 66.8% | 5.8ms       | 0.5ms       |
+| Raw Binary | 80,007 bytes    | 100%  | 0.2ms       | 0.3ms       |
 
 **Key Insights:**
+
 - Gorilla achieves 21% better compression than zlib
 - Encoding is 2x faster than zlib
 - Decoding is slower than general-purpose compression (trade-off for specialized compression)
@@ -81,13 +83,13 @@ The Gorilla Stream Library is designed for high-performance time series compress
 def compress_efficiently(large_dataset) do
   large_dataset
   |> Enum.chunk_every(5000)  # Sweet spot for performance
-  |> Enum.map(&GorillaStream.Compression.Gorilla.compress(&1, false))
+  |> Enum.map(&GorillaStream.compress/1)
 end
 
 # ❌ BAD: Processing all at once
 def compress_inefficiently(large_dataset) do
   # May cause memory pressure for very large datasets
-  GorillaStream.Compression.Gorilla.compress(large_dataset, false)
+  GorillaStream.compress(large_dataset)
 end
 ```
 
@@ -111,8 +113,8 @@ def remove_outliers(data) do
   iqr = q3 - q1
   lower_bound = q1 - 1.5 * iqr
   upper_bound = q3 + 1.5 * iqr
-  
-  Enum.filter(data, fn {_ts, val} -> 
+
+  Enum.filter(data, fn {_ts, val} ->
     val >= lower_bound and val <= upper_bound
   end)
 end
@@ -126,7 +128,7 @@ def compress_stream(data_stream) do
   data_stream
   |> Stream.chunk_every(1000)
   |> Stream.map(fn batch ->
-    result = GorillaStream.Compression.Gorilla.compress(batch, false)
+    result = GorillaStream.compress(batch)
     :erlang.garbage_collect()  # Clean up after each batch
     result
   end)
@@ -136,14 +138,14 @@ end
 # ✅ GOOD: Monitor memory usage
 def compress_with_monitoring(data) do
   initial_memory = :erlang.memory(:total)
-  
-  result = GorillaStream.Compression.Gorilla.compress(data, false)
-  
+
+  result = GorillaStream.compress(data)
+
   final_memory = :erlang.memory(:total)
   memory_used = final_memory - initial_memory
-  
+
   Logger.info("Compressed #{length(data)} points using #{memory_used} bytes")
-  
+
   result
 end
 ```
@@ -155,7 +157,7 @@ end
 def parallel_compress(datasets) do
   datasets
   |> Task.async_stream(
-    &GorillaStream.Compression.Gorilla.compress(&1, false),
+    &GorillaStream.compress/1,
     max_concurrency: System.schedulers_online()
   )
   |> Enum.map(fn {:ok, result} -> result end)
@@ -165,7 +167,7 @@ end
 def compress_multiple_metrics(metrics_by_type) do
   metrics_by_type
   |> Task.async_stream(fn {type, data} ->
-    case GorillaStream.Compression.Gorilla.compress(data, false) do
+    case GorillaStream.compress(data) do
       {:ok, compressed} -> {type, {:ok, compressed}}
       error -> {type, error}
     end
@@ -180,22 +182,26 @@ end
 ### Memory Usage Patterns
 
 **Small Datasets (< 1K points):**
+
 - Memory usage: < 1MB
 - No special handling needed
 - Process directly
 
 **Medium Datasets (1K-10K points):**
+
 - Memory usage: 1-10MB
 - Monitor memory pressure
 - Consider batching for very frequent operations
 
 **Large Datasets (10K-100K points):**
+
 - Memory usage: 10-50MB
 - Always use batching
 - Force garbage collection between batches
 - Monitor system memory
 
 **Very Large Datasets (100K+ points):**
+
 - Memory usage: 50MB+
 - Mandatory streaming approach
 - Implement backpressure
@@ -210,7 +216,7 @@ def compress_with_gc(data) do
   data
   |> Enum.chunk_every(2500)
   |> Enum.map(fn chunk ->
-    result = GorillaStream.Compression.Gorilla.compress(chunk, false)
+    result = GorillaStream.compress(chunk)
     :erlang.garbage_collect()
     result
   end)
@@ -220,12 +226,12 @@ end
 def monitor_memory_usage(fun) do
   :erlang.garbage_collect()
   initial = :erlang.memory(:total)
-  
+
   result = fun.()
-  
+
   :erlang.garbage_collect()
   final = :erlang.memory(:total)
-  
+
   Logger.info("Memory delta: #{final - initial} bytes")
   result
 end
@@ -233,14 +239,14 @@ end
 # 3. Resource Pooling
 defmodule CompressionPool do
   use GenServer
-  
+
   def compress(data) do
     GenServer.call(__MODULE__, {:compress, data})
   end
-  
+
   def handle_call({:compress, data}, _from, state) do
     # Reuse process memory space
-    result = GorillaStream.Compression.Gorilla.compress(data, false)
+    result = GorillaStream.compress(data)
     {:reply, result, state}
   end
 end
@@ -251,16 +257,19 @@ end
 ### Vertical Scaling (Single Machine)
 
 **CPU Optimization:**
+
 - Use all available cores with Task.async_stream
 - Optimal concurrency: `System.schedulers_online()`
 - Avoid over-subscription (more tasks than cores)
 
 **Memory Optimization:**
+
 - Keep batch sizes under 10K points
 - Monitor memory usage continuously
 - Set appropriate heap size limits
 
 **I/O Optimization:**
+
 - Use streaming for disk-based processing
 - Implement proper buffering
 - Consider compression level vs. speed trade-offs
@@ -272,12 +281,12 @@ end
 defmodule DistributedCompression do
   def compress_across_nodes(large_dataset, nodes) do
     chunk_size = div(length(large_dataset), length(nodes))
-    
+
     large_dataset
     |> Enum.chunk_every(chunk_size)
     |> Enum.zip(nodes)
     |> Task.async_stream(fn {chunk, node} ->
-      :rpc.call(node, GorillaStream.Compression.Gorilla, :compress, [chunk, false])
+      :rpc.call(node, GorillaStream, :compress, [chunk])
     end, timeout: 60_000)
     |> Enum.map(fn {:ok, result} -> result end)
   end
@@ -287,45 +296,47 @@ end
 ### Production Scaling Patterns
 
 **Pattern 1: Producer-Consumer**
+
 ```elixir
 defmodule CompressionPipeline do
   use GenStage
-  
+
   def start_link(opts) do
     GenStage.start_link(__MODULE__, opts)
   end
-  
+
   def init(_opts) do
     {:producer_consumer, %{}}
   end
-  
+
   def handle_events(events, _from, state) do
-    compressed_events = 
+    compressed_events =
       events
       |> Enum.map(fn data ->
-        {:ok, compressed} = GorillaStream.Compression.Gorilla.compress(data, false)
+        {:ok, compressed} = GorillaStream.compress(data)
         compressed
       end)
-    
+
     {:noreply, compressed_events, state}
   end
 end
 ```
 
 **Pattern 2: Pooled Workers**
+
 ```elixir
 defmodule CompressionWorkerPool do
   use Supervisor
-  
+
   def start_link(pool_size) do
     Supervisor.start_link(__MODULE__, pool_size, name: __MODULE__)
   end
-  
+
   def init(pool_size) do
     children = for i <- 1..pool_size do
       Supervisor.child_spec({CompressionWorker, []}, id: {CompressionWorker, i})
     end
-    
+
     Supervisor.init(children, strategy: :one_for_one)
   end
 end
@@ -340,13 +351,13 @@ end
 config :gorilla_stream,
   # Optimal batch size for your data patterns
   default_batch_size: 5000,
-  
+
   # Memory threshold for forcing GC
   memory_threshold_mb: 100,
-  
+
   # Concurrency limits
   max_concurrent_compressions: System.schedulers_online(),
-  
+
   # Enable performance monitoring
   enable_telemetry: true
 ```
@@ -358,12 +369,12 @@ defmodule CompressionMetrics do
   def track_compression(data, fun) do
     start_time = :os.system_time(:microsecond)
     initial_memory = :erlang.memory(:total)
-    
+
     result = fun.(data)
-    
+
     end_time = :os.system_time(:microsecond)
     final_memory = :erlang.memory(:total)
-    
+
     metrics = %{
       duration_us: end_time - start_time,
       memory_delta: final_memory - initial_memory,
@@ -373,9 +384,9 @@ defmodule CompressionMetrics do
         _ -> nil
       end
     }
-    
+
     :telemetry.execute([:gorilla_stream, :compression], metrics)
-    
+
     result
   end
 end
@@ -388,17 +399,17 @@ end
 :telemetry.attach("compression-monitor", [:gorilla_stream, :compression], fn
   event, measurements, metadata, _config ->
     %{duration_us: duration, compression_ratio: ratio, data_points: points} = measurements
-    
+
     # Alert on slow compression
     if duration > 100_000 do  # 100ms
       Logger.warning("Slow compression: #{duration}μs for #{points} points")
     end
-    
+
     # Alert on poor compression
     if ratio && ratio > 0.8 do
       Logger.warning("Poor compression ratio: #{Float.round(ratio, 3)} for #{points} points")
     end
-    
+
     # Send metrics to monitoring system
     MyApp.Metrics.gauge("gorilla_compression.duration_ms", duration / 1000)
     MyApp.Metrics.gauge("gorilla_compression.ratio", ratio || 0)
@@ -417,31 +428,31 @@ defmodule PerformanceTest do
       {"random", generate_random(10_000)},
       {"step", generate_step(10_000)}
     ]
-    
+
     Enum.each(patterns, fn {name, data} ->
       {time, {:ok, compressed}} = :timer.tc(fn ->
-        GorillaStream.Compression.Gorilla.compress(data, false)
+        GorillaStream.compress(data)
       end)
-      
+
       ratio = byte_size(compressed) / (length(data) * 16)
       rate = length(data) / (time / 1_000_000)
-      
+
       IO.puts("#{name}: #{Float.round(rate, 0)} points/sec, ratio: #{Float.round(ratio, 3)}")
     end)
   end
-  
+
   def load_test(duration_seconds \\ 60) do
     data = generate_gradual(1000)
     start_time = :os.system_time(:second)
-    
+
     operations = Stream.repeatedly(fn ->
-      GorillaStream.Compression.Gorilla.compress(data, false)
+      GorillaStream.compress(data)
     end)
     |> Enum.take_while(fn _ ->
       :os.system_time(:second) - start_time < duration_seconds
     end)
     |> length()
-    
+
     ops_per_second = operations / duration_seconds
     IO.puts("Sustained load: #{Float.round(ops_per_second, 1)} ops/sec")
   end
@@ -475,6 +486,7 @@ end
 The Gorilla Stream Library provides excellent performance for time series compression when used correctly. Following these guidelines will help you achieve optimal performance in production environments.
 
 Key takeaways:
+
 - Data patterns significantly impact both compression ratio and speed
 - Proper batching and memory management are crucial for large datasets
 - Monitoring and profiling are essential for production deployments
