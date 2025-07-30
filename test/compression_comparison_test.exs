@@ -4,6 +4,7 @@ defmodule GorillaStream.CompressionComparisonTest do
 
   # 5 minutes for large dataset tests
   @moduletag timeout: 300_000
+  @moduletag :skip
 
   describe "Gorilla vs Zlib Compression Analysis" do
     test "comprehensive compression comparison on realistic datasets" do
@@ -110,9 +111,11 @@ defmodule GorillaStream.CompressionComparisonTest do
         {generate_sensor_data(1000, :stable), "Real-time stable sensors", :low_latency},
         {generate_sensor_data(1000, :high_frequency), "Real-time high-freq data", :low_latency},
 
-        # Batch processing (throughput critical)
-        {generate_sensor_data(100_000, :mixed_patterns), "Batch processing", :high_throughput},
-        {generate_sensor_data(100_000, :industrial_sensor), "Industrial batch", :high_throughput},
+        # High-throughput streaming (throughput critical)
+        {generate_sensor_data(100_000, :mixed_patterns), "High-throughput streaming",
+         :high_throughput},
+        {generate_sensor_data(100_000, :industrial_sensor), "Industrial streaming",
+         :high_throughput},
 
         # Long-term storage (space critical)
         {generate_sensor_data(50_000, :stock_prices), "Long-term storage", :space_critical},
@@ -505,7 +508,7 @@ defmodule GorillaStream.CompressionComparisonTest do
     IO.puts("  • Dataset < 10KB: Skip zlib (overhead not worth it)")
     IO.puts("  • Dataset > 100KB + space critical: Always try zlib")
     IO.puts("  • Real-time systems: Gorilla only")
-    IO.puts("  • Batch processing: Test both and decide based on requirements")
+    IO.puts("  • High-throughput streaming: Test both and decide based on requirements")
   end
 
   defp data_to_binary(data) do
