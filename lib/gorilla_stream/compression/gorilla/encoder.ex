@@ -76,19 +76,21 @@ defmodule GorillaStream.Compression.Gorilla.Encoder do
 
   defp valid_data_point?(_), do: false
 
-  # Separate the input stream into timestamps and values
+  # Separate the input stream into timestamps and values (single-pass optimization)
   defp separate_timestamps_and_values(data) do
-    {timestamps, values} = Enum.unzip(data)
+    {timestamps, values} =
+      Enum.reduce(data, {[], []}, fn {timestamp, value}, {ts_acc, val_acc} ->
+        normalized_value =
+          case value do
+            val when is_float(val) -> val
+            val when is_integer(val) -> val * 1.0
+            val -> raise "Invalid value type: #{inspect(val)}"
+          end
 
-    # Ensure values are floats
-    normalized_values =
-      Enum.map(values, fn
-        val when is_float(val) -> val
-        val when is_integer(val) -> val * 1.0
-        val -> raise "Invalid value type: #{inspect(val)}"
+        {[timestamp | ts_acc], [normalized_value | val_acc]}
       end)
 
-    {timestamps, normalized_values}
+    {Enum.reverse(timestamps), Enum.reverse(values)}
   end
 
   # Encode timestamps using delta-of-delta compression
@@ -254,6 +256,52 @@ defmodule GorillaStream.Compression.Gorilla.Encoder do
     [bxor(a_bits, b_bits) | calculate_xor_differences([b | rest])]
   end
 
+  @doc """
+  Optimized encoding function for performance-critical scenarios.
+
+  Bypasses some error handling and validation for maximum speed.
+  Use only when you're certain the input data is valid.
+
+  ## Parameters
+  - `data`: List of {timestamp, float} tuples (must be valid)
+
+  ## Returns
+  - `{:ok, encoded_data}`: When encoding is successful
+  - `{:error, reason}`: When encoding fails
+  """
+  def encode_fast(data) when is_list(data) and length(data) > 0 do
+    try do
+      # Skip validation for speed - assume data is valid
+      {timestamps, values} = separate_timestamps_and_values_fast(data)
+
+      # Direct encoding without error handling wrapper functions
+      {ts_bits, ts_meta} = DeltaEncoding.encode(timestamps)
+      {val_bits, val_meta} = ValueCompression.compress(values)
+      {packed_binary, pack_meta} = BitPacking.pack({ts_bits, ts_meta}, {val_bits, val_meta})
+
+      final_data = Metadata.add_metadata(packed_binary, pack_meta)
+      {:ok, final_data}
+    rescue
+      error ->
+        {:error, "Fast encoding failed: #{inspect(error)}"}
+    end
+  end
+
+  def encode_fast([]), do: {:ok, <<>>}
+  def encode_fast(_), do: {:error, "Invalid input for fast encoding"}
+
+  # Optimized separation without extensive validation
+  defp separate_timestamps_and_values_fast(data) do
+    # Single pass with minimal type checking
+    data
+    |> Enum.reduce({[], []}, fn {timestamp, value}, {ts_acc, val_acc} ->
+      normalized_value = if is_float(value), do: value, else: value * 1.0
+      {[timestamp | ts_acc], [normalized_value | val_acc]}
+    end)
+    |> then(fn {ts_list, val_list} -> {Enum.reverse(ts_list), Enum.reverse(val_list)} end)
+  end
+
+  # Convert float to 64-bit integer representation
   defp float_to_bits(value) when is_float(value) do
     <<bits::64>> = <<value::float-64>>
     bits

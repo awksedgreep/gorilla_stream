@@ -99,15 +99,18 @@ defmodule GorillaStream.Compression.Decoder.ValueDecompression do
     {:error, "Insufficient data for first value"}
   end
 
-  # Decompress a sequence of XOR-encoded values
-  defp decompress_xor_values(state, 0) do
-    {:ok, state}
+  # Decompress a sequence of XOR-encoded values using tail recursion optimization
+  defp decompress_xor_values(state, remaining_count) do
+    decompress_xor_values_loop(state, remaining_count)
   end
 
-  defp decompress_xor_values(state, remaining_count) when remaining_count > 0 do
+  # Tail-recursive loop for better performance
+  defp decompress_xor_values_loop(state, 0), do: {:ok, state}
+
+  defp decompress_xor_values_loop(state, remaining_count) when remaining_count > 0 do
     case decompress_single_xor_value(state) do
       {:ok, new_state} ->
-        decompress_xor_values(new_state, remaining_count - 1)
+        decompress_xor_values_loop(new_state, remaining_count - 1)
 
       {:error, reason} ->
         {:error, reason}
