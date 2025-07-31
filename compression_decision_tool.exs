@@ -8,7 +8,7 @@ defmodule CompressionDecisionTool do
 
   def main(_args) do
     IO.puts("🎯 GORILLA + ZLIB COMPRESSION DECISION TOOL")
-    IO.puts("=" |> String.duplicate(50))
+    IO.puts("============================================================")
 
     # Test with your data patterns
     scenarios = [
@@ -118,9 +118,9 @@ defmodule CompressionDecisionTool do
   end
 
   defp print_recommendations do
-    IO.puts("\n" <> "=" |> String.duplicate(50))
+    IO.puts("\n============================================================")
     IO.puts("📋 QUICK DECISION FRAMEWORK")
-    IO.puts("=" |> String.duplicate(50))
+    IO.puts("============================================================")
 
     IO.puts("\n🎯 Use Gorilla + zlib IF:")
     IO.puts("   • Dataset > 10KB")

@@ -1,10 +1,16 @@
-defmodule GorillaStream.QuickCompressionAnalysis do
-  use ExUnit.Case
-  alias GorillaStream.Compression.Gorilla.{Encoder, Decoder}
+defmodule GorillaStream.Scripts.CompressionAnalysis do
+  @moduledoc """
+  Analysis script to determine when to use zlib with Gorilla compression.
 
-  test "focused compression comparison - when to use zlib" do
+  This script tests different data patterns and sizes to provide recommendations
+  on when combining Gorilla compression with zlib is beneficial.
+  """
+
+  alias GorillaStream.Compression.Gorilla.Encoder
+
+  def run do
     IO.puts("\n🎯 WHEN TO USE ZLIB WITH GORILLA COMPRESSION")
-    IO.puts("=" |> String.duplicate(60))
+    IO.puts("============================================================")
 
     # Test different data patterns and sizes
     scenarios = [
@@ -191,14 +197,14 @@ defmodule GorillaStream.QuickCompressionAnalysis do
   end
 
   defp print_key_insights(results) do
-    IO.puts(("\n" <> "=") |> String.duplicate(60))
+    IO.puts("\n============================================================")
     IO.puts("🔍 KEY INSIGHTS")
-    IO.puts("=" |> String.duplicate(60))
+    IO.puts("============================================================")
 
     # Categorize results
     strong_yes = Enum.filter(results, &String.contains?(&1.recommendation, "STRONG YES"))
     yes = Enum.filter(results, &String.contains?(&1.recommendation, "YES"))
-    maybe = Enum.filter(results, &String.contains?(&1.recommendation, "MAYBE"))
+    _maybe = Enum.filter(results, &String.contains?(&1.recommendation, "MAYBE"))
     no = Enum.filter(results, &String.contains?(&1.recommendation, "NO"))
 
     if length(strong_yes) > 0 do
@@ -244,9 +250,9 @@ defmodule GorillaStream.QuickCompressionAnalysis do
   end
 
   defp print_decision_guide do
-    IO.puts(("\n" <> "=") |> String.duplicate(60))
+    IO.puts("\n============================================================")
     IO.puts("🎯 DECISION GUIDE: When to use Gorilla + zlib")
-    IO.puts("=" |> String.duplicate(60))
+    IO.puts("============================================================")
 
     IO.puts("\n✅ USE Gorilla + zlib when:")
     IO.puts("   📁 Long-term storage (cost per GB matters)")

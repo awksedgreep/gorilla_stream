@@ -529,6 +529,38 @@ Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_do
 and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
 be found at <https://hexdocs.pm/gorilla_stream>.
 
+## Analysis Tools
+
+### Compression Analysis
+
+To help determine when to use zlib compression alongside Gorilla compression, GorillaStream includes an analysis tool that tests different data patterns and provides recommendations:
+
+```bash
+mix gorilla_stream.compression_analysis
+```
+
+This tool will:
+- Test various data patterns (stable sensors, noisy data, mixed patterns, etc.)
+- Compare Gorilla-only vs Gorilla+zlib compression ratios
+- Measure time overhead for additional compression
+- Provide specific recommendations based on your use case
+
+Sample output:
+```
+🎯 WHEN TO USE ZLIB WITH GORILLA COMPRESSION
+============================================================
+
+--- 1K Stable Sensor Data (1000 points) ---
+Original size: 15.6KB
+Gorilla only:  8.3KB (0.531) - 0ms
+Combined:      7.3KB (0.467) - 0ms
+📊 Additional compression: 12.0%
+⚡ Time overhead: 50.1%
+🎯 Recommendation: ✅ YES - Good benefit, reasonable overhead
+```
+
+The tool provides decision guidelines to help you choose the optimal compression strategy for your specific data patterns and performance requirements.
+
 ## When to Use
 
 ✅ **Ideal for:**
