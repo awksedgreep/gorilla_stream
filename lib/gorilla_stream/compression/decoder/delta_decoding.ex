@@ -30,11 +30,7 @@ defmodule GorillaStream.Compression.Decoder.DeltaDecoding do
   def decode(<<>>, %{count: 0}), do: {:ok, []}
 
   def decode(timestamp_bits, metadata) when is_bitstring(timestamp_bits) and is_map(metadata) do
-    # Validate that this is likely encoded binary data, not a UTF-8 string
-    if is_binary(timestamp_bits) and String.valid?(timestamp_bits) and
-         byte_size(timestamp_bits) > 0 do
-      {:error, "Invalid input - expected bitstring and metadata"}
-    else
+    if bit_size(timestamp_bits) > 0 do
       try do
         count = Map.get(metadata, :count, 0)
 
@@ -47,6 +43,8 @@ defmodule GorillaStream.Compression.Decoder.DeltaDecoding do
         error ->
           {:error, "Delta decoding failed: #{inspect(error)}"}
       end
+    else
+      {:error, "Invalid input - expected bitstring and metadata"}
     end
   end
 
@@ -228,11 +226,7 @@ defmodule GorillaStream.Compression.Decoder.DeltaDecoding do
   """
   def validate_bitstream(timestamp_bits, expected_count)
       when is_bitstring(timestamp_bits) and is_integer(expected_count) do
-    # Validate that this is likely encoded binary data, not a UTF-8 string
-    if is_binary(timestamp_bits) and String.valid?(timestamp_bits) and
-         byte_size(timestamp_bits) > 0 do
-      {:error, "Invalid input - expected bitstring"}
-    else
+    if bit_size(timestamp_bits) > 0 do
       metadata = %{count: expected_count}
 
       case decode(timestamp_bits, metadata) do
@@ -247,6 +241,8 @@ defmodule GorillaStream.Compression.Decoder.DeltaDecoding do
         {:error, reason} ->
           {:error, "Validation failed: #{reason}"}
       end
+    else
+      {:error, "Invalid input - expected bitstring"}
     end
   end
 
@@ -264,11 +260,7 @@ defmodule GorillaStream.Compression.Decoder.DeltaDecoding do
   """
   def get_bitstream_info(timestamp_bits, metadata)
       when is_bitstring(timestamp_bits) and is_map(metadata) do
-    # Validate that this is likely encoded binary data, not a UTF-8 string
-    if is_binary(timestamp_bits) and String.valid?(timestamp_bits) and
-         byte_size(timestamp_bits) > 0 do
-      {:error, "Invalid input"}
-    else
+    if bit_size(timestamp_bits) > 0 do
       try do
         count = Map.get(metadata, :count, 0)
 
@@ -307,6 +299,8 @@ defmodule GorillaStream.Compression.Decoder.DeltaDecoding do
         error ->
           {:error, "Analysis failed: #{inspect(error)}"}
       end
+    else
+      {:error, "Invalid input"}
     end
   end
 
