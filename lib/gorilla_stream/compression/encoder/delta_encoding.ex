@@ -47,14 +47,14 @@ defmodule GorillaStream.Compression.Encoder.DeltaEncoding do
     bits = <<first::64, encode_first_delta(first_delta)::bitstring>>
 
     # Process remaining timestamps with delta-of-delta encoding
-    {final_bits, _, _} =
-      Enum.reduce(rest, {bits, first_delta, second}, fn timestamp,
-                                                        {acc_bits, prev_delta, prev_timestamp} ->
+    {iodata, _, _} =
+      Enum.reduce(rest, {[bits], first_delta, second}, fn timestamp,
+                                                          {acc, prev_delta, prev_timestamp} ->
         current_delta = timestamp - prev_timestamp
         delta_of_delta = current_delta - prev_delta
         encoded_dod = encode_delta_of_delta(delta_of_delta)
 
-        {<<acc_bits::bitstring, encoded_dod::bitstring>>, current_delta, timestamp}
+        {[acc, encoded_dod], current_delta, timestamp}
       end)
 
     metadata = %{
@@ -63,7 +63,7 @@ defmodule GorillaStream.Compression.Encoder.DeltaEncoding do
       first_delta: first_delta
     }
 
-    {final_bits, metadata}
+    {IO.iodata_to_binary(iodata), metadata}
   end
 
   # Encode the first delta (between first and second timestamp)
