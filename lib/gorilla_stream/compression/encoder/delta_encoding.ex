@@ -39,22 +39,22 @@ defmodule GorillaStream.Compression.Encoder.DeltaEncoding do
     {<<timestamp::64>>, %{count: 1, first_timestamp: timestamp}}
   end
 
+  alias GorillaStream.Compression.Encoder.BitWriter
+
   def encode([first, second | rest]) when is_integer(first) and is_integer(second) do
-    # Store first timestamp (64 bits)
     first_delta = second - first
 
-    # Start with first timestamp and first delta
-    bits = <<first::64, encode_first_delta(first_delta)::bitstring>>
+    writer =
+      %BitWriter{}
+      |> BitWriter.write(first, 64)
+      |> BitWriter.write_bits(encode_first_delta(first_delta))
 
-    # Process remaining timestamps with delta-of-delta encoding
-    {iodata, _, _} =
-      Enum.reduce(rest, {[bits], first_delta, second}, fn timestamp,
-                                                          {acc, prev_delta, prev_timestamp} ->
-        current_delta = timestamp - prev_timestamp
+    {writer, _, _} =
+      Enum.reduce(rest, {writer, first_delta, second}, fn timestamp, {w, prev_delta, prev_ts} ->
+        current_delta = timestamp - prev_ts
         delta_of_delta = current_delta - prev_delta
-        encoded_dod = encode_delta_of_delta(delta_of_delta)
-
-        {[acc, encoded_dod], current_delta, timestamp}
+        w = BitWriter.write_bits(w, encode_delta_of_delta(delta_of_delta))
+        {w, current_delta, timestamp}
       end)
 
     metadata = %{
@@ -63,7 +63,7 @@ defmodule GorillaStream.Compression.Encoder.DeltaEncoding do
       first_delta: first_delta
     }
 
-    {IO.iodata_to_binary(iodata), metadata}
+    {BitWriter.to_binary(writer), metadata}
   end
 
   # Encode the first delta (between first and second timestamp)
