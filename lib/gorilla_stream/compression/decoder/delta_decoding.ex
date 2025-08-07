@@ -72,21 +72,14 @@ defmodule GorillaStream.Compression.Decoder.DeltaDecoding do
         if count == 2 do
           {:ok, [first_timestamp, second_timestamp]}
         else
-          # Decode remaining timestamps using delta-of-delta
-          case decode_delta_of_deltas(remaining_bits, count - 2) do
-            {:ok, delta_of_deltas} ->
-              timestamps =
-                reconstruct_timestamps(
-                  first_timestamp,
-                  first_delta,
-                  delta_of_deltas
-                )
-
-              {:ok, timestamps}
-
-            {:error, reason} ->
-              {:error, reason}
-          end
+          # Decode remaining timestamps while reconstructing them on the fly
+          decode_remaining_timestamps(
+            remaining_bits,
+            count - 2,
+            first_delta,
+            second_timestamp,
+            [first_timestamp, second_timestamp]
+          )
         end
 
       {:error, reason} ->
@@ -134,25 +127,6 @@ defmodule GorillaStream.Compression.Decoder.DeltaDecoding do
     {:error, "Invalid or insufficient data for first delta"}
   end
 
-  # Decode a sequence of delta-of-delta values
-  defp decode_delta_of_deltas(bits, count) do
-    decode_delta_of_deltas(bits, count, [])
-  end
-
-  defp decode_delta_of_deltas(_bits, 0, acc) do
-    {:ok, Enum.reverse(acc)}
-  end
-
-  defp decode_delta_of_deltas(bits, count, acc) when count > 0 do
-    case decode_single_delta_of_delta(bits) do
-      {:ok, {dod, remaining_bits}} ->
-        decode_delta_of_deltas(remaining_bits, count - 1, [dod | acc])
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
   # Decode a single delta-of-delta value
   defp decode_single_delta_of_delta(<<0::1, rest::bitstring>>) do
     # Delta-of-delta is 0
@@ -187,32 +161,27 @@ defmodule GorillaStream.Compression.Decoder.DeltaDecoding do
     {:error, "Invalid delta-of-delta encoding"}
   end
 
-  # Reconstruct timestamps from deltas and delta-of-deltas
-  defp reconstruct_timestamps(first_timestamp, first_delta, delta_of_deltas) do
-    # Start with first and second timestamps
-    second_timestamp = first_timestamp + first_delta
+  # Decode delta-of-deltas and reconstruct timestamps in one pass
+  defp decode_remaining_timestamps(_bits, 0, _prev_delta, _last_timestamp, acc) do
+    {:ok, acc}
+  end
 
-    # If no delta-of-deltas, we're done
-    if Enum.empty?(delta_of_deltas) do
-      [first_timestamp, second_timestamp]
-    else
-      # Reconstruct remaining timestamps using delta-of-deltas
-      # Use tail recursion for O(n) performance instead of list concatenation
-      {_, _, all_timestamps} =
-        Enum.reduce(
-          delta_of_deltas,
-          {first_delta, second_timestamp, [second_timestamp, first_timestamp]},
-          fn dod, {prev_delta, last_timestamp, acc_timestamps} ->
-            # Calculate new delta and next timestamp
-            current_delta = prev_delta + dod
-            next_timestamp = last_timestamp + current_delta
-            # Prepend to list (O(1) operation)
-            {current_delta, next_timestamp, [next_timestamp | acc_timestamps]}
-          end
+  defp decode_remaining_timestamps(bits, count, prev_delta, last_timestamp, acc) when count > 0 do
+    case decode_single_delta_of_delta(bits) do
+      {:ok, {dod, remaining_bits}} ->
+        current_delta = prev_delta + dod
+        next_timestamp = last_timestamp + current_delta
+
+        decode_remaining_timestamps(
+          remaining_bits,
+          count - 1,
+          current_delta,
+          next_timestamp,
+          acc ++ [next_timestamp]
         )
 
-      # Reverse to get correct order (O(n) operation, done once)
-      Enum.reverse(all_timestamps)
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
