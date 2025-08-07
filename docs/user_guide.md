@@ -341,11 +341,11 @@ end
   GorillaStream.Compression.Gorilla.compress("not_a_list", false)
 
 # Invalid tuple structure
-{:error, "Invalid data format: expected {timestamp, float} tuple"} =
+{:error, "Invalid data format: expected {timestamp, number} tuple"} =
   GorillaStream.Compression.Gorilla.compress([{1, 2, 3}], false)
 
 # Non-numeric values
-{:error, "Invalid data format: expected {timestamp, float} tuple"} =
+{:error, "Invalid data format: expected {timestamp, number} tuple"} =
   GorillaStream.Compression.Gorilla.compress([{1, "invalid"}], false)
 ```
 
@@ -516,7 +516,7 @@ end
 | -------------------------------------- | ------------------------- | ----------------------------------------- |
 | "Invalid input data"                   | Non-list input            | Pass a list of tuples                     |
 | "Invalid data format"                  | Wrong tuple structure     | Use `{timestamp, value}` format           |
-| "expected {timestamp, float} tuple"    | Wrong data types          | Ensure integer timestamps, numeric values |
+| "expected {timestamp, number} tuple"   | Wrong data types          | Ensure integer timestamps, numeric values |
 | "Insufficient data for initial values" | Corrupted compressed data | Check data integrity                      |
 
 ## Examples

@@ -2,7 +2,7 @@ defmodule GorillaStream.Compression.Gorilla do
   @moduledoc """
   Implements Gorilla compression for time series data streams.
 
-  This module provides compression for streams of {timestamp, float} data using
+  This module provides compression for streams of {timestamp, number} data using
   the Gorilla compression algorithm, with optional Zlib compression for additional
   compression at the final step.
 
@@ -13,10 +13,10 @@ defmodule GorillaStream.Compression.Gorilla do
   alias GorillaStream.Compression.Gorilla.{Encoder, Decoder}
 
   @doc """
-  Compresses a stream of {timestamp, float} data using the Gorilla algorithm.
+  Compresses a stream of {timestamp, number} data using the Gorilla algorithm.
 
   ## Parameters
-  - `stream`: An enumerable of {timestamp, float} tuples
+  - `stream`: An enumerable of {timestamp, number} tuples
   - `zlib_compression?`: Boolean flag to enable Zlib compression on the final output (default: false)
 
   ## Returns
@@ -104,18 +104,19 @@ defmodule GorillaStream.Compression.Gorilla do
       :ok
 
       iex> GorillaStream.Compression.Gorilla.validate_stream([{1609459200, "invalid"}])
-      {:error, "Invalid data format: expected {timestamp, float} tuple"}
+      {:error, "Invalid data format: expected {timestamp, number} tuple"}
   """
   def validate_stream(stream) do
     case Enum.all?(stream, &is_valid_data_tuple?/1) do
       true -> :ok
-      false -> {:error, "Invalid data format: expected {timestamp, float} tuple"}
+      false -> {:error, "Invalid data format: expected {timestamp, number} tuple"}
     end
   end
 
   # Private functions
 
-  defp is_valid_data_tuple?({timestamp, value}) when is_integer(timestamp) and is_float(value) do
+  defp is_valid_data_tuple?({timestamp, value})
+       when is_integer(timestamp) and (is_float(value) or is_integer(value)) do
     true
   end
 

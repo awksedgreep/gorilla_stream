@@ -16,7 +16,7 @@
 
 **Symptoms:**
 
-- `{:error, "Invalid data format: expected {timestamp, float} tuple"}`
+- `{:error, "Invalid data format: expected {timestamp, number} tuple"}`
 - `{:error, "Invalid input data"}`
 
 **Causes:**
@@ -281,7 +281,7 @@ GorillaStream.compress(%{data: "map"})
 GorillaStream.compress([{1609459200, 23.5}])
 ```
 
-### "Invalid data format: expected {timestamp, float} tuple"
+### "Invalid data format: expected {timestamp, number} tuple"
 
 **Cause:** Wrong tuple structure or data types
 

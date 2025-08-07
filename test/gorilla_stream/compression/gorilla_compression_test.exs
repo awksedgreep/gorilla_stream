@@ -109,7 +109,7 @@ defmodule GorillaStream.Compression.GorillaCompressionTest do
   test "compress/2 returns error for invalid stream format" do
     invalid_stream = [{1_609_459_200, "invalid"}, {1_609_459_201, 1.24}]
 
-    assert {:error, "Invalid data format: expected {timestamp, float} tuple"} =
+    assert {:error, "Invalid data format: expected {timestamp, number} tuple"} =
              Gorilla.compress(invalid_stream, false)
   end
 
@@ -122,7 +122,7 @@ defmodule GorillaStream.Compression.GorillaCompressionTest do
   test "compress/2 returns error for invalid data type" do
     invalid_stream = [{1_609_459_200, 1.23}, {1_609_459_201, :invalid}]
 
-    assert {:error, "Invalid data format: expected {timestamp, float} tuple"} =
+    assert {:error, "Invalid data format: expected {timestamp, number} tuple"} =
              Gorilla.compress(invalid_stream, false)
   end
 
@@ -153,13 +153,13 @@ defmodule GorillaStream.Compression.GorillaCompressionTest do
     invalid_stream2 = [{1_609_459_200, 1.23}, {"invalid", 1.24}]
     invalid_stream3 = [1.23, 1.24]
 
-    assert {:error, "Invalid data format: expected {timestamp, float} tuple"} =
+    assert {:error, "Invalid data format: expected {timestamp, number} tuple"} =
              Gorilla.validate_stream(invalid_stream1)
 
-    assert {:error, "Invalid data format: expected {timestamp, float} tuple"} =
+    assert {:error, "Invalid data format: expected {timestamp, number} tuple"} =
              Gorilla.validate_stream(invalid_stream2)
 
-    assert {:error, "Invalid data format: expected {timestamp, float} tuple"} =
+    assert {:error, "Invalid data format: expected {timestamp, number} tuple"} =
              Gorilla.validate_stream(invalid_stream3)
   end
 
