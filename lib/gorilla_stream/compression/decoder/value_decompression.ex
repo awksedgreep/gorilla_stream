@@ -70,6 +70,7 @@ defmodule GorillaStream.Compression.Decoder.ValueDecompression do
           initial_state = %{
             bits: remaining_bits,
             prev_value_bits: float_to_bits(first_value),
+            prev_value: first_value,
             prev_leading_zeros: 0,
             prev_trailing_zeros: 0,
             values: [first_value]
@@ -120,14 +121,7 @@ defmodule GorillaStream.Compression.Decoder.ValueDecompression do
   # Decompress a single XOR-encoded value
   defp decompress_single_xor_value(%{bits: <<0::1, rest::bitstring>>} = state) do
     # Value is identical to previous - XOR result was 0
-    prev_value = bits_to_float(state.prev_value_bits)
-
-    {:ok,
-     %{
-       state
-       | bits: rest,
-         values: [prev_value | state.values]
-     }}
+    {:ok, %{state | bits: rest, values: [state.prev_value | state.values]}}
   end
 
   defp decompress_single_xor_value(%{bits: <<1::1, 0::1, rest::bitstring>>} = state) do
@@ -149,6 +143,7 @@ defmodule GorillaStream.Compression.Decoder.ValueDecompression do
              state
              | bits: remaining_bits,
                prev_value_bits: new_value_bits,
+               prev_value: new_value,
                values: [new_value | state.values]
            }}
 
@@ -185,6 +180,7 @@ defmodule GorillaStream.Compression.Decoder.ValueDecompression do
                    state
                    | bits: final_bits,
                      prev_value_bits: new_value_bits,
+                     prev_value: new_value,
                      prev_leading_zeros: leading_zeros,
                      prev_trailing_zeros: trailing_zeros,
                      values: [new_value | state.values]
