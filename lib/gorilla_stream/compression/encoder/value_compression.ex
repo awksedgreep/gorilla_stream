@@ -38,7 +38,7 @@ defmodule GorillaStream.Compression.Encoder.ValueCompression do
   def compress([first | rest]) do
     # Store first value as-is (64 bits)
     first_bits = float_to_bits(first)
-    bits = <<first_bits::64>>
+    bits = [<<first_bits::64>>]
 
     # Process remaining values with XOR compression
     initial_state = %{
@@ -55,7 +55,9 @@ defmodule GorillaStream.Compression.Encoder.ValueCompression do
       first_value: first
     }
 
-    {final_state.bits, metadata}
+    final_bits = :erlang.list_to_bitstring(final_state.bits)
+
+    {final_bits, metadata}
   end
 
   # Encode a single value using XOR compression
@@ -65,7 +67,7 @@ defmodule GorillaStream.Compression.Encoder.ValueCompression do
 
     if xor_result == 0 do
       # Value is identical to previous - store single '0' bit
-      %{state | bits: <<state.bits::bitstring, 0::1>>, prev_value_bits: current_bits}
+      %{state | bits: [state.bits, <<0::1>>], prev_value_bits: current_bits}
     else
       # Value differs - encode the XOR result
       encode_xor_result(xor_result, current_bits, state)
@@ -92,8 +94,7 @@ defmodule GorillaStream.Compression.Encoder.ValueCompression do
 
         %{
           state
-          | bits:
-              <<state.bits::bitstring, 1::1, 0::1, meaningful_value::size(meaningful_length)>>,
+          | bits: [state.bits, <<1::1, 0::1, meaningful_value::size(meaningful_length)>>],
             prev_value_bits: current_bits
         }
       else
@@ -140,18 +141,20 @@ defmodule GorillaStream.Compression.Encoder.ValueCompression do
         0
       end
 
-    new_bits = <<
-      state.bits::bitstring,
-      # Control bits '11'
-      1::1,
-      1::1,
-      # 5 bits for leading zeros
-      adjusted_leading_zeros::5,
-      # 6 bits for length (length - 1)
-      adjusted_meaningful_bits - 1::6,
-      # The meaningful bits
-      meaningful_value::size(adjusted_meaningful_bits)
-    >>
+    new_bits = [
+      state.bits,
+      <<
+        # Control bits '11'
+        1::1,
+        1::1,
+        # 5 bits for leading zeros
+        adjusted_leading_zeros::5,
+        # 6 bits for length (length - 1)
+        adjusted_meaningful_bits - 1::6,
+        # The meaningful bits
+        meaningful_value::size(adjusted_meaningful_bits)
+      >>
+    ]
 
     %{
       state
