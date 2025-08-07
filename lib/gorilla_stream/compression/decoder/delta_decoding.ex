@@ -30,21 +30,28 @@ defmodule GorillaStream.Compression.Decoder.DeltaDecoding do
   def decode(<<>>, %{count: 0}), do: {:ok, []}
 
   def decode(timestamp_bits, metadata) when is_bitstring(timestamp_bits) and is_map(metadata) do
-    if bit_size(timestamp_bits) > 0 do
-      try do
-        count = Map.get(metadata, :count, 0)
-
-        case count do
-          0 -> {:ok, []}
-          1 -> decode_single_timestamp(timestamp_bits)
-          _ -> decode_multiple_timestamps(timestamp_bits, metadata)
+    count = Map.get(metadata, :count, 0)
+    
+    cond do
+      count == 0 and bit_size(timestamp_bits) == 0 ->
+        # Empty data with count 0 is valid
+        {:ok, []}
+      count == 0 ->
+        # Count 0 but has data - return empty (metadata says no timestamps)
+        {:ok, []}
+      bit_size(timestamp_bits) == 0 ->
+        # No data but count > 0 - error
+        {:error, "Invalid input - expected bitstring and metadata"}
+      true ->
+        try do
+          case count do
+            1 -> decode_single_timestamp(timestamp_bits)
+            _ -> decode_multiple_timestamps(timestamp_bits, metadata)
+          end
+        rescue
+          error ->
+            {:error, "Delta decoding failed: #{inspect(error)}"}
         end
-      rescue
-        error ->
-          {:error, "Delta decoding failed: #{inspect(error)}"}
-      end
-    else
-      {:error, "Invalid input - expected bitstring and metadata"}
     end
   end
 
@@ -71,12 +78,13 @@ defmodule GorillaStream.Compression.Decoder.DeltaDecoding do
           {:ok, [first_timestamp, second_timestamp]}
         else
           # Decode remaining timestamps while reconstructing them on the fly
+          # Note: We build the list in reverse for O(1) prepend, then reverse at the end
           decode_remaining_timestamps(
             remaining_bits,
             count - 2,
             first_delta,
             second_timestamp,
-            [first_timestamp, second_timestamp]
+            [second_timestamp, first_timestamp]
           )
         end
 
@@ -161,7 +169,8 @@ defmodule GorillaStream.Compression.Decoder.DeltaDecoding do
 
   # Decode delta-of-deltas and reconstruct timestamps in one pass
   defp decode_remaining_timestamps(_bits, 0, _prev_delta, _last_timestamp, acc) do
-    {:ok, acc}
+    # Reverse the accumulated list since we built it backwards for O(1) prepend
+    {:ok, Enum.reverse(acc)}
   end
 
   defp decode_remaining_timestamps(bits, count, prev_delta, last_timestamp, acc) when count > 0 do
@@ -175,7 +184,7 @@ defmodule GorillaStream.Compression.Decoder.DeltaDecoding do
           count - 1,
           current_delta,
           next_timestamp,
-          acc ++ [next_timestamp]
+          [next_timestamp | acc]  # O(1) prepend instead of O(n) append
         )
 
       {:error, reason} ->
@@ -195,23 +204,26 @@ defmodule GorillaStream.Compression.Decoder.DeltaDecoding do
   """
   def validate_bitstream(timestamp_bits, expected_count)
       when is_bitstring(timestamp_bits) and is_integer(expected_count) do
-    if bit_size(timestamp_bits) > 0 do
-      metadata = %{count: expected_count}
+    cond do
+      bit_size(timestamp_bits) == 0 and expected_count == 0 ->
+        :ok
+      bit_size(timestamp_bits) == 0 ->
+        {:error, "Invalid input - expected bitstring"}
+      true ->
+        metadata = %{count: expected_count}
+        
+        case decode(timestamp_bits, metadata) do
+          {:ok, timestamps} ->
+            if length(timestamps) == expected_count do
+              :ok
+            else
+              {:error,
+               "Decoded count mismatch: expected #{expected_count}, got #{length(timestamps)}"}
+            end
 
-      case decode(timestamp_bits, metadata) do
-        {:ok, timestamps} ->
-          if length(timestamps) == expected_count do
-            :ok
-          else
-            {:error,
-             "Decoded count mismatch: expected #{expected_count}, got #{length(timestamps)}"}
-          end
-
-        {:error, reason} ->
-          {:error, "Validation failed: #{reason}"}
-      end
-    else
-      {:error, "Invalid input - expected bitstring"}
+          {:error, reason} ->
+            {:error, "Validation failed: #{reason}"}
+        end
     end
   end
 
@@ -229,47 +241,46 @@ defmodule GorillaStream.Compression.Decoder.DeltaDecoding do
   """
   def get_bitstream_info(timestamp_bits, metadata)
       when is_bitstring(timestamp_bits) and is_map(metadata) do
-    if bit_size(timestamp_bits) > 0 do
-      try do
-        count = Map.get(metadata, :count, 0)
+    try do
+      count = Map.get(metadata, :count)
+      
+      case {count, bit_size(timestamp_bits)} do
+        {nil, _} ->
+          {:error, "Invalid input"}
+        {0, 0} ->
+          {:ok, %{count: 0, first_timestamp: nil, estimated_range: nil}}
+        {0, _} ->
+          {:ok, %{count: 0, first_timestamp: nil, estimated_range: nil}}
+        {_, 0} ->
+          {:error, "Invalid input"}
+        {1, _} ->
+          case timestamp_bits do
+            <<first::64, _rest::bitstring>> ->
+              {:ok, %{count: 1, first_timestamp: first, estimated_range: 0}}
+            _ ->
+              {:error, "Insufficient data"}
+          end
+        {count, _} ->
+          case extract_initial_values(timestamp_bits) do
+            {:ok, {first_timestamp, first_delta, _}} ->
+              estimated_last = first_timestamp + (count - 1) * first_delta
+              estimated_range = estimated_last - first_timestamp
 
-        case count do
-          0 ->
-            {:ok, %{count: 0, first_timestamp: nil, estimated_range: nil}}
+              {:ok,
+               %{
+                 count: count,
+                 first_timestamp: first_timestamp,
+                 first_delta: first_delta,
+                 estimated_range: estimated_range
+               }}
 
-          1 ->
-            case timestamp_bits do
-              <<first::64, _rest::bitstring>> ->
-                {:ok, %{count: 1, first_timestamp: first, estimated_range: 0}}
-
-              _ ->
-                {:error, "Insufficient data"}
-            end
-
-          _ ->
-            case extract_initial_values(timestamp_bits) do
-              {:ok, {first_timestamp, first_delta, _}} ->
-                estimated_last = first_timestamp + (count - 1) * first_delta
-                estimated_range = estimated_last - first_timestamp
-
-                {:ok,
-                 %{
-                   count: count,
-                   first_timestamp: first_timestamp,
-                   first_delta: first_delta,
-                   estimated_range: estimated_range
-                 }}
-
-              {:error, reason} ->
-                {:error, reason}
-            end
-        end
-      rescue
-        error ->
-          {:error, "Analysis failed: #{inspect(error)}"}
+            {:error, reason} ->
+              {:error, reason}
+          end
       end
-    else
-      {:error, "Invalid input"}
+    rescue
+      error ->
+        {:error, "Analysis failed: #{inspect(error)}"}
     end
   end
 
