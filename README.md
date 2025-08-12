@@ -550,12 +550,14 @@ mix gorilla_stream.compression_analysis
 ```
 
 This tool will:
+
 - Test various data patterns (stable sensors, noisy data, mixed patterns, etc.)
 - Compare Gorilla-only vs Gorilla+zlib compression ratios
 - Measure time overhead for additional compression
 - Provide specific recommendations based on your use case
 
 Sample output:
+
 ```
 🎯 WHEN TO USE ZLIB WITH GORILLA COMPRESSION
 ============================================================

@@ -555,10 +555,11 @@ defmodule GorillaStream.Compression.Decoder.DeltaDecodingTest do
       # Note: Strings ARE bitstrings in Elixir
       # Without proper validation headers, the decoder will interpret any binary as timestamp data
       # This test should really be testing non-bitstring types like atoms or integers
-      assert {:error, "Invalid input - expected bitstring"} = 
-        DeltaDecoding.validate_bitstream(:not_a_bitstring, 2)
-      assert {:error, "Invalid input - expected bitstring"} = 
-        DeltaDecoding.validate_bitstream(123, 2)
+      assert {:error, "Invalid input - expected bitstring"} =
+               DeltaDecoding.validate_bitstream(:not_a_bitstring, 2)
+
+      assert {:error, "Invalid input - expected bitstring"} =
+               DeltaDecoding.validate_bitstream(123, 2)
     end
   end
 

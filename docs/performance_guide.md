@@ -417,6 +417,7 @@ RealisticData.generate(20_000, :mixed_patterns)
 ```
 
 Notes:
+
 - Seeding is deterministic and isolated; it won’t affect the caller’s RNG state.
 - Timestamps are monotonically increasing with the given `:interval`.
 - Values are floats; integer inputs are normalized to floats internally.

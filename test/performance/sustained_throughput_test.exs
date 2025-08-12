@@ -315,6 +315,7 @@ defmodule GorillaStream.Performance.SustainedThroughputTest do
 
   defp generate_realistic_sensor_data(count) do
     base_timestamp = 1_609_459_200
+
     GorillaStream.Performance.RealisticData.generate(count, :temperature,
       interval: 60,
       base_timestamp: base_timestamp,

@@ -25,7 +25,7 @@ defmodule GorillaStream.Performance.StreamingOpsTest do
       # Encode -> Decode (round trip)
       {:ok, compressed} = Encoder.encode(batch_data)
       {:ok, decompressed} = Decoder.decode(compressed)
-      
+
       # Verify correctness
       assert length(decompressed) == batch_size
 
@@ -35,7 +35,10 @@ defmodule GorillaStream.Performance.StreamingOpsTest do
         elapsed = (current_time - start_time) / 1_000_000
         processed_points = batch_num * batch_size
         ops_per_sec = processed_points / elapsed
-        IO.puts("Batch #{batch_num}/#{total_batches}: #{processed_points} points, #{Float.round(ops_per_sec, 0)} ops/sec")
+
+        IO.puts(
+          "Batch #{batch_num}/#{total_batches}: #{processed_points} points, #{Float.round(ops_per_sec, 0)} ops/sec"
+        )
       end
     end)
 
@@ -49,9 +52,10 @@ defmodule GorillaStream.Performance.StreamingOpsTest do
     IO.puts("\n=== Final Results ===")
     IO.puts("Total time: #{Float.round(total_time, 2)} seconds")
     IO.puts("Total operations/sec: #{Float.round(total_ops_per_sec, 0)} ops/sec")
-    
+
     # Assert reasonable performance
-    assert total_ops_per_sec > 10_000, "Should achieve at least 10k ops/sec, got #{Float.round(total_ops_per_sec, 0)}"
+    assert total_ops_per_sec > 10_000,
+           "Should achieve at least 10k ops/sec, got #{Float.round(total_ops_per_sec, 0)}"
 
     IO.puts("Streaming test completed successfully")
   end

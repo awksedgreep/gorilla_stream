@@ -2,18 +2,19 @@ defmodule GorillaStream.Performance.MetricSnapshots do
   @moduledoc """
   Periodic metric snapshot system that captures operations per second and memory usage
   every 10 seconds during benchmark execution.
-  
+
   Stores snapshots in memory for CSV-style output at the end.
   """
-  
+
   use GenServer
   require Logger
 
-  @snapshot_interval_ms 10_000  # 10 seconds
+  # 10 seconds
+  @snapshot_interval_ms 10_000
 
   defmodule Snapshot do
     @moduledoc "Represents a single metric snapshot"
-    
+
     defstruct [
       :timestamp,
       :elapsed_seconds,
@@ -39,7 +40,7 @@ defmodule GorillaStream.Performance.MetricSnapshots do
 
   defmodule State do
     @moduledoc "GenServer state for tracking metrics"
-    
+
     defstruct [
       :start_time,
       :last_snapshot_time,
@@ -60,7 +61,7 @@ defmodule GorillaStream.Performance.MetricSnapshots do
 
   @doc """
   Updates the current operation counters.
-  
+
   ## Parameters
   - `ops`: A map with operation counts:
     - `:raw_enc_ops` - Raw encoding operations count
@@ -100,10 +101,10 @@ defmodule GorillaStream.Performance.MetricSnapshots do
   @impl true
   def init(_opts) do
     now = System.monotonic_time(:millisecond)
-    
+
     # Schedule first snapshot
     timer_ref = Process.send_after(self(), :take_snapshot, @snapshot_interval_ms)
-    
+
     initial_state = %State{
       start_time: now,
       last_snapshot_time: now,
@@ -116,9 +117,11 @@ defmodule GorillaStream.Performance.MetricSnapshots do
       snapshots: [],
       timer_ref: timer_ref
     }
-    
-    Logger.info("Started metric snapshots - taking snapshots every #{div(@snapshot_interval_ms, 1000)} seconds")
-    
+
+    Logger.info(
+      "Started metric snapshots - taking snapshots every #{div(@snapshot_interval_ms, 1000)} seconds"
+    )
+
     {:ok, initial_state}
   end
 
@@ -140,10 +143,10 @@ defmodule GorillaStream.Performance.MetricSnapshots do
     if state.timer_ref do
       Process.cancel_timer(state.timer_ref)
     end
-    
+
     final_state = take_snapshot_now(state)
     snapshots = Enum.reverse(final_state.snapshots)
-    
+
     {:stop, :normal, snapshots, final_state}
   end
 
@@ -152,7 +155,7 @@ defmodule GorillaStream.Performance.MetricSnapshots do
     # Take snapshot and schedule next one
     new_state = take_snapshot_now(state)
     timer_ref = Process.send_after(self(), :take_snapshot, @snapshot_interval_ms)
-    
+
     {:noreply, %{new_state | timer_ref: timer_ref}}
   end
 
@@ -162,33 +165,34 @@ defmodule GorillaStream.Performance.MetricSnapshots do
     now = System.monotonic_time(:millisecond)
     elapsed_total_seconds = div(now - state.start_time, 1000)
     elapsed_since_last_seconds = div(now - state.last_snapshot_time, 1000)
-    
+
     # Get current memory usage
     total_memory = :erlang.memory(:total)
-    
+
     # Calculate operations since last snapshot (handle case where no previous snapshot exists)
-    {ops_since_last, cumulative_ops} = if length(state.snapshots) == 0 do
-      # First snapshot - since_last equals cumulative
-      ops = state.last_ops_counters
-      {ops, ops}
-    else
-      # Calculate diff from previous snapshot
-      [last_snapshot | _] = state.snapshots
-      
-      ops_since_last = %{
-        raw_enc_ops: state.last_ops_counters.raw_enc_ops - last_snapshot.raw_enc_ops_cumulative,
-        raw_dec_ops: state.last_ops_counters.raw_dec_ops - last_snapshot.raw_dec_ops_cumulative,
-        z_enc_ops: state.last_ops_counters.z_enc_ops - last_snapshot.z_enc_ops_cumulative,
-        z_dec_ops: state.last_ops_counters.z_dec_ops - last_snapshot.z_dec_ops_cumulative
-      }
-      
-      {ops_since_last, state.last_ops_counters}
-    end
-    
+    {ops_since_last, cumulative_ops} =
+      if length(state.snapshots) == 0 do
+        # First snapshot - since_last equals cumulative
+        ops = state.last_ops_counters
+        {ops, ops}
+      else
+        # Calculate diff from previous snapshot
+        [last_snapshot | _] = state.snapshots
+
+        ops_since_last = %{
+          raw_enc_ops: state.last_ops_counters.raw_enc_ops - last_snapshot.raw_enc_ops_cumulative,
+          raw_dec_ops: state.last_ops_counters.raw_dec_ops - last_snapshot.raw_dec_ops_cumulative,
+          z_enc_ops: state.last_ops_counters.z_enc_ops - last_snapshot.z_enc_ops_cumulative,
+          z_dec_ops: state.last_ops_counters.z_dec_ops - last_snapshot.z_dec_ops_cumulative
+        }
+
+        {ops_since_last, state.last_ops_counters}
+      end
+
     # Calculate ops per second
     ops_per_sec_since_last = calculate_ops_per_sec(ops_since_last, elapsed_since_last_seconds)
     ops_per_sec_cumulative = calculate_ops_per_sec(cumulative_ops, elapsed_total_seconds)
-    
+
     snapshot = %Snapshot{
       timestamp: now,
       elapsed_seconds: elapsed_total_seconds,
@@ -210,14 +214,11 @@ defmodule GorillaStream.Performance.MetricSnapshots do
       z_dec_ops_per_sec_cumulative: ops_per_sec_cumulative.z_dec_ops,
       total_memory_bytes: total_memory
     }
-    
+
     # Log the snapshot
     log_snapshot(snapshot)
-    
-    %{state | 
-      last_snapshot_time: now,
-      snapshots: [snapshot | state.snapshots]
-    }
+
+    %{state | last_snapshot_time: now, snapshots: [snapshot | state.snapshots]}
   end
 
   defp calculate_ops_per_sec(ops, elapsed_seconds) when elapsed_seconds > 0 do
@@ -236,20 +237,20 @@ defmodule GorillaStream.Performance.MetricSnapshots do
 
   defp log_snapshot(snapshot) do
     Logger.info("""
-    
+
     === METRIC SNAPSHOT (#{snapshot.elapsed_seconds}s elapsed) ===
     Since Last (10s):
       • Raw Encode: #{snapshot.raw_enc_ops_since_last} ops (#{snapshot.raw_enc_ops_per_sec_since_last} ops/sec)
       • Raw Decode: #{snapshot.raw_dec_ops_since_last} ops (#{snapshot.raw_dec_ops_per_sec_since_last} ops/sec)
       • Zlib Encode: #{snapshot.z_enc_ops_since_last} ops (#{snapshot.z_enc_ops_per_sec_since_last} ops/sec)
       • Zlib Decode: #{snapshot.z_dec_ops_since_last} ops (#{snapshot.z_dec_ops_per_sec_since_last} ops/sec)
-    
+
     Cumulative:
       • Raw Encode: #{snapshot.raw_enc_ops_cumulative} ops (#{snapshot.raw_enc_ops_per_sec_cumulative} ops/sec)
       • Raw Decode: #{snapshot.raw_dec_ops_cumulative} ops (#{snapshot.raw_dec_ops_per_sec_cumulative} ops/sec) 
       • Zlib Encode: #{snapshot.z_enc_ops_cumulative} ops (#{snapshot.z_enc_ops_per_sec_cumulative} ops/sec)
       • Zlib Decode: #{snapshot.z_dec_ops_cumulative} ops (#{snapshot.z_dec_ops_per_sec_cumulative} ops/sec)
-    
+
     Memory: #{format_bytes(snapshot.total_memory_bytes)}
     ========================================
     """)
@@ -257,7 +258,10 @@ defmodule GorillaStream.Performance.MetricSnapshots do
 
   defp format_bytes(bytes) when bytes < 1024, do: "#{bytes} B"
   defp format_bytes(bytes) when bytes < 1024 * 1024, do: "#{Float.round(bytes / 1024, 1)} KB"
-  defp format_bytes(bytes) when bytes < 1024 * 1024 * 1024, do: "#{Float.round(bytes / (1024 * 1024), 1)} MB"
+
+  defp format_bytes(bytes) when bytes < 1024 * 1024 * 1024,
+    do: "#{Float.round(bytes / (1024 * 1024), 1)} MB"
+
   defp format_bytes(bytes), do: "#{Float.round(bytes / (1024 * 1024 * 1024), 1)} GB"
 
   defp print_csv_header do
@@ -267,6 +271,8 @@ defmodule GorillaStream.Performance.MetricSnapshots do
   end
 
   defp print_csv_row(snapshot) do
-    IO.puts("#{snapshot.elapsed_seconds},#{snapshot.raw_enc_ops_since_last},#{snapshot.raw_dec_ops_since_last},#{snapshot.z_enc_ops_since_last},#{snapshot.z_dec_ops_since_last},#{snapshot.raw_enc_ops_cumulative},#{snapshot.raw_dec_ops_cumulative},#{snapshot.z_enc_ops_cumulative},#{snapshot.z_dec_ops_cumulative},#{snapshot.raw_enc_ops_per_sec_since_last},#{snapshot.raw_dec_ops_per_sec_since_last},#{snapshot.z_enc_ops_per_sec_since_last},#{snapshot.z_dec_ops_per_sec_since_last},#{snapshot.raw_enc_ops_per_sec_cumulative},#{snapshot.raw_dec_ops_per_sec_cumulative},#{snapshot.z_enc_ops_per_sec_cumulative},#{snapshot.z_dec_ops_per_sec_cumulative},#{snapshot.total_memory_bytes}")
+    IO.puts(
+      "#{snapshot.elapsed_seconds},#{snapshot.raw_enc_ops_since_last},#{snapshot.raw_dec_ops_since_last},#{snapshot.z_enc_ops_since_last},#{snapshot.z_dec_ops_since_last},#{snapshot.raw_enc_ops_cumulative},#{snapshot.raw_dec_ops_cumulative},#{snapshot.z_enc_ops_cumulative},#{snapshot.z_dec_ops_cumulative},#{snapshot.raw_enc_ops_per_sec_since_last},#{snapshot.raw_dec_ops_per_sec_since_last},#{snapshot.z_enc_ops_per_sec_since_last},#{snapshot.z_dec_ops_per_sec_since_last},#{snapshot.raw_enc_ops_per_sec_cumulative},#{snapshot.raw_dec_ops_per_sec_cumulative},#{snapshot.z_enc_ops_per_sec_cumulative},#{snapshot.z_dec_ops_per_sec_cumulative},#{snapshot.total_memory_bytes}"
+    )
   end
 end

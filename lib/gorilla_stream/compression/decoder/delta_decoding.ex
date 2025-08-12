@@ -31,17 +31,20 @@ defmodule GorillaStream.Compression.Decoder.DeltaDecoding do
 
   def decode(timestamp_bits, metadata) when is_bitstring(timestamp_bits) and is_map(metadata) do
     count = Map.get(metadata, :count, 0)
-    
+
     cond do
       count == 0 and bit_size(timestamp_bits) == 0 ->
         # Empty data with count 0 is valid
         {:ok, []}
+
       count == 0 ->
         # Count 0 but has data - return empty (metadata says no timestamps)
         {:ok, []}
+
       bit_size(timestamp_bits) == 0 ->
         # No data but count > 0 - error
         {:error, "Invalid input - expected bitstring and metadata"}
+
       true ->
         try do
           case count do
@@ -184,7 +187,8 @@ defmodule GorillaStream.Compression.Decoder.DeltaDecoding do
           count - 1,
           current_delta,
           next_timestamp,
-          [next_timestamp | acc]  # O(1) prepend instead of O(n) append
+          # O(1) prepend instead of O(n) append
+          [next_timestamp | acc]
         )
 
       {:error, reason} ->
@@ -207,11 +211,13 @@ defmodule GorillaStream.Compression.Decoder.DeltaDecoding do
     cond do
       bit_size(timestamp_bits) == 0 and expected_count == 0 ->
         :ok
+
       bit_size(timestamp_bits) == 0 ->
         {:error, "Invalid input - expected bitstring"}
+
       true ->
         metadata = %{count: expected_count}
-        
+
         case decode(timestamp_bits, metadata) do
           {:ok, timestamps} ->
             if length(timestamps) == expected_count do
@@ -243,23 +249,29 @@ defmodule GorillaStream.Compression.Decoder.DeltaDecoding do
       when is_bitstring(timestamp_bits) and is_map(metadata) do
     try do
       count = Map.get(metadata, :count)
-      
+
       case {count, bit_size(timestamp_bits)} do
         {nil, _} ->
           {:error, "Invalid input"}
+
         {0, 0} ->
           {:ok, %{count: 0, first_timestamp: nil, estimated_range: nil}}
+
         {0, _} ->
           {:ok, %{count: 0, first_timestamp: nil, estimated_range: nil}}
+
         {_, 0} ->
           {:error, "Invalid input"}
+
         {1, _} ->
           case timestamp_bits do
             <<first::64, _rest::bitstring>> ->
               {:ok, %{count: 1, first_timestamp: first, estimated_range: 0}}
+
             _ ->
               {:error, "Insufficient data"}
           end
+
         {count, _} ->
           case extract_initial_values(timestamp_bits) do
             {:ok, {first_timestamp, first_delta, _}} ->
