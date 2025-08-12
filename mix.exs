@@ -8,7 +8,8 @@ defmodule GorillaStream.MixProject do
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      dialyzer: dialyzer()
+      dialyzer: dialyzer(),
+      aliases: aliases()
     ]
   end
 
@@ -32,6 +33,13 @@ defmodule GorillaStream.MixProject do
       plt_file: {:no_warn, "priv/plts/dialyzer.plt"},
       plt_add_apps: [:mix],
       ignore_warnings: ".dialyzer_ignore.exs"
+    ]
+  end
+
+  defp aliases do
+    [
+      "check.format": ["format --check-formatted"],
+      ci: ["check.format", "test"]
     ]
   end
 end
