@@ -5,7 +5,11 @@ defmodule GorillaStream.Performance.OptimizedBenchmarkTest do
   @large_size 100_000
 
   defp generate_data(size) do
-    Enum.map(0..(size - 1), fn i -> {i, :math.sin(i / 10)} end)
+    # Use realistic temperature profile with deterministic seed
+    GorillaStream.Performance.RealisticData.generate(size, :temperature,
+      interval: 60,
+      seed: {1, 2, 3}
+    )
   end
 
   test "compare original and optimized encoder performance" do
@@ -32,9 +36,9 @@ defmodule GorillaStream.Performance.OptimizedBenchmarkTest do
     IO.puts("Original encoder time (median of 5): #{orig_time} µs")
     IO.puts("Optimized encoder time (median of 5): #{opt_time} µs")
 
-  # The original encoder has been optimized recently, narrowing the gap.
-  # Guard against regressions: optimized should not be slower than original by more than 5%.
-  assert opt_time <= orig_time * 1.05,
-       "Optimized encoder regressed: opt=#{opt_time}µs, orig=#{orig_time}µs"
+    # The original encoder has been optimized recently, narrowing the gap.
+    # Guard against regressions: optimized should not be slower than original by more than 5%.
+    assert opt_time <= orig_time * 1.05,
+           "Optimized encoder regressed: opt=#{opt_time}µs, orig=#{orig_time}µs"
   end
 end

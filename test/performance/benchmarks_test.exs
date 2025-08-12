@@ -63,7 +63,10 @@ defmodule GorillaStream.Performance.BenchmarksTest do
       sizes = [100, 500, 1000, 5000, 10000]
 
       for size <- sizes do
-        data = generate_gradual_increase(size)
+        data = GorillaStream.Performance.RealisticData.generate(size, :temperature,
+          interval: 60,
+          seed: {1, 2, 3}
+        )
 
         # Measure compression performance
         {encode_time, {:ok, compressed}} = :timer.tc(fn -> Encoder.encode(data) end)
@@ -96,7 +99,10 @@ defmodule GorillaStream.Performance.BenchmarksTest do
 
     test "memory usage profiling" do
       # Test memory usage with large datasets
-      large_data = generate_gradual_increase(50_000)
+      large_data = GorillaStream.Performance.RealisticData.generate(50_000, :temperature,
+        interval: 60,
+        seed: {1, 2, 3}
+      )
 
       # Measure memory before
       :erlang.garbage_collect()
@@ -142,8 +148,11 @@ defmodule GorillaStream.Performance.BenchmarksTest do
       # Test concurrent operations to ensure thread safety
       data_sets =
         for i <- 1..10 do
-          # Different sizes
-          generate_sine_wave(1000 + i * 100)
+          # Different sizes, deterministic seed per set
+          GorillaStream.Performance.RealisticData.generate(1000 + i * 100, :temperature,
+            interval: 60,
+            seed: {i, 2, 3}
+          )
         end
 
       # Concurrent compression
@@ -196,7 +205,10 @@ defmodule GorillaStream.Performance.BenchmarksTest do
 
     test "comparison with uncompressed storage" do
       # Compare Gorilla compression with simple binary storage
-      test_data = generate_realistic_sensor_data(5000)
+      test_data = GorillaStream.Performance.RealisticData.generate(5000, :temperature,
+        interval: 60,
+        seed: {1, 2, 3}
+      )
 
       # Gorilla compression
       {gorilla_encode_time, {:ok, gorilla_compressed}} =

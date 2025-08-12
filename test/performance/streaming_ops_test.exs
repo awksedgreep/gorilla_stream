@@ -59,11 +59,11 @@ defmodule GorillaStream.Performance.StreamingOpsTest do
   # Generate streaming sensor data
   defp generate_batch_data(count, batch_offset) do
     base_timestamp = 1_609_459_200 + (batch_offset - 1) * count * 60
-    
-    for i <- 0..(count - 1) do
-      timestamp = base_timestamp + i * 60
-      temperature = 20.0 + 5.0 * :math.sin(i * 0.001) + rem(i, 100) / 1000.0
-      {timestamp, temperature}
-    end
+    # Use realistic temperature profile; vary seed per-batch for deterministic uniqueness
+    GorillaStream.Performance.RealisticData.generate(count, :temperature,
+      interval: 60,
+      base_timestamp: base_timestamp,
+      seed: {batch_offset, 123, 456}
+    )
   end
 end

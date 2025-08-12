@@ -315,19 +315,11 @@ defmodule GorillaStream.Performance.SustainedThroughputTest do
 
   defp generate_realistic_sensor_data(count) do
     base_timestamp = 1_609_459_200
-    # Deterministic seed for reproducible tests
-    :rand.seed(:exsss, {1, 2, 3})
-
-    for i <- 0..(count - 1) do
-      # Simulate realistic sensor data: base temperature + daily cycle + noise
-      # 24-hour cycle
-      daily_cycle = 5.0 * :math.sin(i * 2 * :math.pi() / 1440)
-      # ±0.25 degree noise
-      noise = (:rand.uniform() - 0.5) * 0.5
-      temperature = 20.0 + daily_cycle + noise
-      # Every minute
-      {base_timestamp + i * 60, temperature}
-    end
+    GorillaStream.Performance.RealisticData.generate(count, :temperature,
+      interval: 60,
+      base_timestamp: base_timestamp,
+      seed: {1, 2, 3}
+    )
   end
 
   defp generate_time_shifted_data(base_data, time_offset) do

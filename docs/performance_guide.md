@@ -8,6 +8,7 @@
 4. [Memory Management](#memory-management)
 5. [Scaling Guidelines](#scaling-guidelines)
 6. [Production Tuning](#production-tuning)
+7. [Realistic data generation](#realistic-data-generation)
 
 ## Performance Overview
 
@@ -391,6 +392,34 @@ defmodule CompressionMetrics do
   end
 end
 ```
+
+## Realistic data generation
+
+For performance tests that reflect real-world behavior, prefer using the realistic data generator over contrived patterns like pure sine waves.
+
+Usage:
+
+```elixir
+alias GorillaStream.Performance.RealisticData
+
+# Generate 5,000 realistic temperature readings, 1-minute interval, deterministic seed
+data = RealisticData.generate(5_000, :temperature,
+  interval: 60,
+  seed: {1, 2, 3}
+)
+
+# Other supported profiles:
+RealisticData.generate(10_000, :industrial_sensor)
+RealisticData.generate(50_000, :server_metrics)
+RealisticData.generate(2_000, :stock_prices)
+RealisticData.generate(1_000, :vibration)
+RealisticData.generate(20_000, :mixed_patterns)
+```
+
+Notes:
+- Seeding is deterministic and isolated; it won’t affect the caller’s RNG state.
+- Timestamps are monotonically increasing with the given `:interval`.
+- Values are floats; integer inputs are normalized to floats internally.
 
 ### Alerting and Monitoring
 
