@@ -1,4 +1,3 @@
-````markdown
 # GorillaStream
 
 A high-performance, lossless compression library for time series data in Elixir, implementing Facebook's Gorilla compression algorithm.
@@ -6,11 +5,22 @@ A high-performance, lossless compression library for time series data in Elixir,
 ## Features
 
 - **Lossless Compression**: Perfect reconstruction of original time series data
-- **High Performance**: 1.7M+ points/sec encoding, up to 2M points/sec decoding
+- **High Performance**: 4.3M points/sec average (peak 5.7M) encoding throughput on realistic data
 - **Excellent Compression Ratios**: 2-42x compression depending on data patterns
 - **Production Ready**: Comprehensive error handling and validation
 - **Memory Efficient**: ~117 bytes/point memory usage for large datasets
 - **Zlib Support**: Optional additional compression layer
+
+## Performance
+
+Recent benchmark results on realistic time-series data profiles:
+
+- Overall throughput: 4064545.0 points/sec
+- Average throughput: 4300195.0 points/sec
+- Min throughput: 2702703.0 points/sec
+- Max throughput: 5714286.0 points/sec
+
+Notes: Measurements use synchronous tests with warmup and median-of-5 timing to reduce noise. Your results may vary based on hardware and workload. See the Performance Guide for details and how to reproduce.
 
 ## Quick Start
 
@@ -106,7 +116,7 @@ IO.inspect(metadata1)
 ```elixir
 # Process huge files without loading everything into memory
 defmodule LargeFileProcessor do
-  alias GorillaStream.{Stream, File}
+  alias GorillaStream.Stream, as: GStream
 
   def process_csv_file(file_path) do
     file_path
@@ -511,7 +521,7 @@ by adding `gorilla_stream` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:gorilla_stream, "~> 1.1"}
+  {:gorilla_stream, "~> 1.3"}
   ]
 end
 ```
@@ -575,4 +585,3 @@ The tool provides decision guidelines to help you choose the optimal compression
 - Completely random data with no patterns
 - Text or binary data (use general-purpose compression)
 - Data with frequent large jumps between values
-````
