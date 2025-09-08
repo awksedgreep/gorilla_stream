@@ -4,7 +4,7 @@ defmodule GorillaStream.MixProject do
   def project do
     [
       app: :gorilla_stream,
-      version: "1.3.3",
+      version: "1.3.4",
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
