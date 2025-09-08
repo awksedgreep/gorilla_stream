@@ -33,9 +33,11 @@ defmodule GorillaStream.Compression.Gorilla.Encoder do
   - `{:ok, encoded_data}`: When encoding is successful
   - `{:error, reason}`: When encoding fails
   """
-  def encode([]), do: {:ok, <<>>}
+  # Unified encode with default opts; keeps encode/1 calls working via default argument
+  def encode(data, opts \\ [])
+  def encode([], _opts), do: {:ok, <<>>}
 
-  def encode(data) when is_list(data) and length(data) > 0 do
+  def encode(data, opts) when is_list(data) and length(data) > 0 do
     # Fast path validation - check first few items to catch common errors early
     case validate_input_data_fast(data) do
       :ok ->
@@ -43,12 +45,29 @@ defmodule GorillaStream.Compression.Gorilla.Encoder do
           # Optimized path - minimal validation for speed
           {timestamps, values} = separate_timestamps_and_values(data)
 
+          victoria_metrics? = Keyword.get(opts, :victoria_metrics, false)
+          is_counter? = Keyword.get(opts, :is_counter, false)
+          scale_opt = Keyword.get(opts, :scale_decimals, :auto)
+
+          {pre_values, vm_meta} =
+            if victoria_metrics? do
+              # Apply VM-style preprocessing
+              values1 = if is_counter?, do: GorillaStream.Compression.Enhancements.delta_encode_counter(values), else: values
+              {scaled, n} = GorillaStream.Compression.Enhancements.scale_floats_to_ints(values1, scale_opt)
+              {scaled, %{victoria_metrics: true, is_counter: is_counter?, scale_decimals: n}}
+            else
+              {values, %{victoria_metrics: false, is_counter: false, scale_decimals: 0}}
+            end
+
           # Direct encoding without error handling wrapper functions
           {ts_bits, ts_meta} = DeltaEncoding.encode(timestamps)
-          {val_bits, val_meta} = ValueCompression.compress(values)
+          {val_bits, val_meta} = ValueCompression.compress(pre_values)
           {packed_binary, pack_meta} = BitPacking.pack({ts_bits, ts_meta}, {val_bits, val_meta})
 
-          final_data = Metadata.add_metadata(packed_binary, pack_meta)
+          # Thread vm_meta forward for header decisions
+          meta_with_vm = Map.put(pack_meta, :vm_meta, vm_meta)
+
+          final_data = Metadata.add_metadata(packed_binary, meta_with_vm)
           {:ok, final_data}
         rescue
           error in RuntimeError ->
@@ -67,7 +86,8 @@ defmodule GorillaStream.Compression.Gorilla.Encoder do
     end
   end
 
-  def encode(_), do: {:error, "Invalid input data - expected list of {timestamp, float} tuples"}
+  # Fallback clause for invalid input types
+  def encode(_, _opts), do: {:error, "Invalid input data - expected list of {timestamp, float} tuples"}
 
   # Fast validation that checks input format without full enumeration
   defp validate_input_data_fast(data) do

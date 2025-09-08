@@ -1,5 +1,6 @@
 defmodule GorillaStream.Performance.BenchmarksTest do
   use ExUnit.Case, async: false
+  require Logger
   @moduletag :performance
   alias GorillaStream.Compression.Gorilla.{Encoder, Decoder}
 
@@ -47,16 +48,40 @@ defmodule GorillaStream.Performance.BenchmarksTest do
         assert decode_time < 100_000,
                "#{pattern_name}: Decoding should be under 100ms for 1000 points"
 
-        IO.puts("\n=== #{pattern_name} ===")
-        IO.puts("Compression ratio: #{Float.round(compression_ratio, 4)}")
-        IO.puts("Encode time: #{encode_time}μs (#{Float.round(encode_time / 1000, 2)}ms)")
-        IO.puts("Decode time: #{decode_time}μs (#{Float.round(decode_time / 1000, 2)}ms)")
-        IO.puts("Original size: #{original_size} bytes")
-        IO.puts("Compressed size: #{compressed_size} bytes")
+        Logger.info("\n=== #{pattern_name} ===")
+        Logger.info("Compression ratio: #{Float.round(compression_ratio, 4)}")
+        Logger.info("Encode time: #{encode_time}μs (#{Float.round(encode_time / 1000, 2)}ms)")
+        Logger.info("Decode time: #{decode_time}μs (#{Float.round(decode_time / 1000, 2)}ms)")
+        Logger.info("Original size: #{original_size} bytes")
+        Logger.info("Compressed size: #{compressed_size} bytes")
       end
 
       # Performance tests completed successfully
-      IO.puts("All compression ratio tests completed")
+      Logger.info("All compression ratio tests completed")
+    end
+
+    test "VictoriaMetrics preprocessing performance (gauge and counter)" do
+      require Logger
+      gauge = generate_gradual_increase(5000)
+      base = 1_700_000_000
+      vals = Enum.scan(1..5000, 1_000.0, fn _, acc -> acc + (:rand.uniform(5) - 1) end)
+      counter = Enum.with_index(vals, fn v, i -> {base + i, v + 0.01} end)
+
+      # Gauge
+      {g_b_t, {:ok, g_b}} = :timer.tc(fn -> Encoder.encode(gauge) end)
+      {g_vm_t, {:ok, g_vm}} = :timer.tc(fn -> Encoder.encode(gauge, victoria_metrics: true, is_counter: false, scale_decimals: :auto) end)
+      g_orig = length(gauge) * 16
+      Logger.info("[VM gauge] baseline_ratio=#{Float.round(byte_size(g_b) / g_orig, 4)} vm_ratio=#{Float.round(byte_size(g_vm) / g_orig, 4)} baseline_us=#{g_b_t} vm_us=#{g_vm_t}")
+
+      # Counter
+      {c_b_t, {:ok, c_b}} = :timer.tc(fn -> Encoder.encode(counter) end)
+      {c_vm_t, {:ok, c_vm}} = :timer.tc(fn -> Encoder.encode(counter, victoria_metrics: true, is_counter: true, scale_decimals: :auto) end)
+      c_orig = length(counter) * 16
+      Logger.info("[VM counter] baseline_ratio=#{Float.round(byte_size(c_b) / c_orig, 4)} vm_ratio=#{Float.round(byte_size(c_vm) / c_orig, 4)} baseline_us=#{c_b_t} vm_us=#{c_vm_t}")
+
+      # Sanity: VM should not be worse by more than a factor on typical data
+      assert byte_size(g_vm) <= byte_size(g_b) * 1.05
+      assert byte_size(c_vm) <= byte_size(c_b) * 1.05
     end
 
     test "scalability testing with various dataset sizes" do
@@ -90,11 +115,11 @@ defmodule GorillaStream.Performance.BenchmarksTest do
 
         compression_ratio = byte_size(compressed) / (size * 16)
 
-        IO.puts("\n=== Dataset size: #{size} points ===")
-        IO.puts("Encode rate: #{Float.round(encode_rate, 0)} points/sec")
-        IO.puts("Decode rate: #{Float.round(decode_rate, 0)} points/sec")
-        IO.puts("Compression ratio: #{Float.round(compression_ratio, 4)}")
-        IO.puts("Memory usage: #{byte_size(compressed)} bytes compressed")
+        Logger.info("\n=== Dataset size: #{size} points ===")
+        Logger.info("Encode rate: #{Float.round(encode_rate, 0)} points/sec")
+        Logger.info("Decode rate: #{Float.round(decode_rate, 0)} points/sec")
+        Logger.info("Compression ratio: #{Float.round(compression_ratio, 4)}")
+        Logger.info("Memory usage: #{byte_size(compressed)} bytes compressed")
       end
     end
 
@@ -130,14 +155,14 @@ defmodule GorillaStream.Performance.BenchmarksTest do
       encode_memory_usage = memory_after_encode - memory_before
       total_memory_usage = memory_after_decode - memory_before
 
-      IO.puts("\n=== Memory Usage Analysis (50K points) ===")
-      IO.puts("Memory before: #{memory_before} bytes")
-      IO.puts("Memory after encode: #{memory_after_encode} bytes")
-      IO.puts("Memory after decode: #{memory_after_decode} bytes")
-      IO.puts("Encode memory usage: #{encode_memory_usage} bytes")
-      IO.puts("Total memory usage: #{total_memory_usage} bytes")
-      IO.puts("Data size: #{length(large_data)} points")
-      IO.puts("Compressed size: #{byte_size(compressed)} bytes")
+      Logger.info("\n=== Memory Usage Analysis (50K points) ===")
+      Logger.info("Memory before: #{memory_before} bytes")
+      Logger.info("Memory after encode: #{memory_after_encode} bytes")
+      Logger.info("Memory after decode: #{memory_after_decode} bytes")
+      Logger.info("Encode memory usage: #{encode_memory_usage} bytes")
+      Logger.info("Total memory usage: #{total_memory_usage} bytes")
+      Logger.info("Data size: #{length(large_data)} points")
+      Logger.info("Compressed size: #{byte_size(compressed)} bytes")
 
       # Memory usage should be reasonable
       memory_per_point = total_memory_usage / length(large_data)
@@ -199,10 +224,10 @@ defmodule GorillaStream.Performance.BenchmarksTest do
         |> Enum.sum()
         |> div(length(decompression_results))
 
-      IO.puts("\n=== Concurrent Performance (10 tasks) ===")
-      IO.puts("Average encode time: #{avg_encode_time}μs")
-      IO.puts("Average decode time: #{avg_decode_time}μs")
-      IO.puts("All concurrent operations completed successfully")
+      Logger.info("\n=== Concurrent Performance (10 tasks) ===")
+      Logger.info("Average encode time: #{avg_encode_time}μs")
+      Logger.info("Average decode time: #{avg_decode_time}μs")
+      Logger.info("All concurrent operations completed successfully")
     end
 
     test "comparison with uncompressed storage" do
@@ -259,28 +284,28 @@ defmodule GorillaStream.Performance.BenchmarksTest do
       binary_ratio = byte_size(binary_data) / original_size
       zlib_ratio = byte_size(zlib_compressed) / original_size
 
-      IO.puts("\n=== Compression Comparison (5K sensor points) ===")
-      IO.puts("Original size: #{original_size} bytes")
-      IO.puts("")
-      IO.puts("Gorilla:")
+      Logger.info("\n=== Compression Comparison (5K sensor points) ===")
+      Logger.info("Original size: #{original_size} bytes")
+      Logger.info("")
+      Logger.info("Gorilla:")
 
-      IO.puts(
+Logger.info(
         "  Size: #{byte_size(gorilla_compressed)} bytes (ratio: #{Float.round(gorilla_ratio, 4)})"
       )
 
-      IO.puts("  Encode: #{gorilla_encode_time}μs, Decode: #{gorilla_decode_time}μs")
-      IO.puts("")
-      IO.puts("Binary (baseline):")
-      IO.puts("  Size: #{byte_size(binary_data)} bytes (ratio: #{Float.round(binary_ratio, 4)})")
-      IO.puts("  Encode: #{binary_encode_time}μs, Decode: #{binary_decode_time}μs")
-      IO.puts("")
-      IO.puts("Zlib:")
+      Logger.info("  Encode: #{gorilla_encode_time}μs, Decode: #{gorilla_decode_time}μs")
+      Logger.info("")
+      Logger.info("Binary (baseline):")
+      Logger.info("  Size: #{byte_size(binary_data)} bytes (ratio: #{Float.round(binary_ratio, 4)})")
+      Logger.info("  Encode: #{binary_encode_time}μs, Decode: #{binary_decode_time}μs")
+      Logger.info("")
+      Logger.info("Zlib:")
 
-      IO.puts(
+      Logger.info(
         "  Size: #{byte_size(zlib_compressed)} bytes (ratio: #{Float.round(zlib_ratio, 4)})"
       )
 
-      IO.puts("  Encode: #{zlib_encode_time}μs, Decode: #{zlib_decode_time}μs")
+      Logger.info("  Encode: #{zlib_encode_time}μs, Decode: #{zlib_decode_time}μs")
 
       # Gorilla should be competitive
       assert gorilla_ratio < binary_ratio, "Gorilla should compress better than raw binary"
@@ -308,10 +333,10 @@ defmodule GorillaStream.Performance.BenchmarksTest do
         assert encode_time < 50_000, "#{case_name}: Encoding should be under 50ms"
         assert decode_time < 50_000, "#{case_name}: Decoding should be under 50ms"
 
-        IO.puts("\n=== Edge Case: #{case_name} ===")
-        IO.puts("Compression ratio: #{Float.round(compression_ratio, 4)}")
-        IO.puts("Encode time: #{encode_time}μs")
-        IO.puts("Decode time: #{decode_time}μs")
+        Logger.info("\n=== Edge Case: #{case_name} ===")
+        Logger.info("Compression ratio: #{Float.round(compression_ratio, 4)}")
+        Logger.info("Encode time: #{encode_time}μs")
+        Logger.info("Decode time: #{decode_time}μs")
       end
     end
   end

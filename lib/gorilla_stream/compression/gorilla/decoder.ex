@@ -34,11 +34,12 @@ defmodule GorillaStream.Compression.Gorilla.Decoder do
 
   def decode(encoded_data) when is_binary(encoded_data) do
     try do
-      # Pipeline: metadata -> unpack -> decode timestamps -> decode values -> combine
-      with {:ok, _extracted_metadata, remaining_data} <- extract_metadata(encoded_data),
+      # Pipeline: metadata -> unpack -> decode timestamps -> decode values -> optional VM post -> combine
+      with {:ok, extracted_metadata, remaining_data} <- extract_metadata(encoded_data),
            {:ok, timestamp_bits, value_bits, unpack_metadata} <- unpack_data(remaining_data),
            {:ok, timestamps} <- decode_timestamps(timestamp_bits, unpack_metadata),
-           {:ok, values} <- decode_values(value_bits, unpack_metadata),
+           {:ok, values_raw} <- decode_values(value_bits, unpack_metadata),
+           {:ok, values} <- maybe_vm_postprocess(values_raw, extracted_metadata),
            {:ok, combined_stream} <- combine_stream(timestamps, values) do
         {:ok, combined_stream}
       end
@@ -105,6 +106,24 @@ defmodule GorillaStream.Compression.Gorilla.Decoder do
     rescue
       error ->
         {:error, "Value decompression failed: #{inspect(error)}"}
+    end
+  end
+
+  # Optional VictoriaMetrics-style postprocessing
+  defp maybe_vm_postprocess(values, metadata) do
+    import Bitwise
+    flags = Map.get(metadata, :flags, 0)
+    vm_enabled? = (flags &&& 0x1) != 0
+    is_counter? = (flags &&& 0x2) != 0
+
+    if vm_enabled? do
+      n = Map.get(metadata, :scale_decimals, 0)
+      scale = if n > 0, do: :math.pow(10, n), else: 1.0
+      unscaled = if n > 0, do: Enum.map(values, &(&1 / scale)), else: values
+      decoded = if is_counter?, do: GorillaStream.Compression.Enhancements.delta_decode_counter(unscaled), else: unscaled
+      {:ok, decoded}
+    else
+      {:ok, values}
     end
   end
 

@@ -17,6 +17,7 @@ defmodule GorillaStream.Compression.Encoder.Metadata do
   # "GORILLA" in hex
   @magic_number 0x474F52494C4C41
   @version 1
+  import Bitwise
 
   @doc """
   Adds metadata to packed data.
@@ -70,6 +71,12 @@ defmodule GorillaStream.Compression.Encoder.Metadata do
     first_value = Map.get(value_meta, :first_value, 0.0)
     first_value_bits = float_to_bits(first_value)
 
+    # VM meta (optional)
+    vm_meta = Map.get(metadata, :vm_meta, %{victoria_metrics: false, is_counter: false, scale_decimals: 0})
+    vm_enabled = Map.get(vm_meta, :victoria_metrics, false)
+    is_counter = Map.get(vm_meta, :is_counter, false)
+    scale_decimals = Map.get(vm_meta, :scale_decimals, 0)
+
     # Calculate compressed data size
     compressed_size = byte_size(packed_data)
 
@@ -77,32 +84,19 @@ defmodule GorillaStream.Compression.Encoder.Metadata do
     original_size = estimate_original_size(count)
     compression_ratio = if original_size > 0, do: compressed_size / original_size, else: 0.0
 
-    # Metadata header format:
-    # - 64 bits: Magic number
-    # - 16 bits: Version
-    # - 16 bits: Header length (in bytes)
-    # - 32 bits: Count of data points
-    # - 32 bits: Compressed data size
-    # - 32 bits: Estimated original size
-    # - 32 bits: Checksum
-    # - 64 bits: First timestamp
-    # - 32 bits: First delta
-    # - 64 bits: First value (as bits)
-    # - 32 bits: Timestamp bitstream length
-    # - 32 bits: Value bitstream length
-    # - 32 bits: Total bits
-    # - 64 bits: Compression ratio (as float)
-    # - 64 bits: Creation timestamp (current time)
-    # - 32 bits: Flags (reserved for future use)
+    # Determine header version/length: keep v1 (80 bytes) unless VM features used
+    emit_v2? = vm_enabled or (is_counter and scale_decimals >= 0)
 
-    # Header size in bytes
-    header_size = 80
-
+    header_size = if emit_v2?, do: 84, else: 80
     creation_time = :os.system_time(:second)
-    # Reserved for future use
-    flags = 0
 
-    <<
+    # Flags bitfield
+    flags =
+      0
+      |> (fn f -> if vm_enabled, do: f ||| 0x1, else: f end).()
+      |> (fn f -> if is_counter, do: f ||| 0x2, else: f end).()
+
+    base = <<
       @magic_number::64,
       @version::16,
       header_size::16,
@@ -120,6 +114,12 @@ defmodule GorillaStream.Compression.Encoder.Metadata do
       creation_time::64,
       flags::32
     >>
+
+    if emit_v2? do
+      <<base::binary, scale_decimals::32>>
+    else
+      base
+    end
   end
 
   # Convert float to 64-bit integer representation
@@ -163,7 +163,7 @@ defmodule GorillaStream.Compression.Encoder.Metadata do
         version > @version ->
           {:error, "Unsupported version: #{version}"}
 
-        header_length != 80 ->
+        header_length not in [80, 84] ->
           {:error, "Invalid header length: #{header_length}"}
 
         byte_size(binary) < header_length ->

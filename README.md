@@ -24,6 +24,8 @@ Notes: Measurements use synchronous tests with warmup and median-of-5 timing to 
 
 ## Quick Start
 
+Note: VictoriaMetrics-style preprocessing is enabled by default to improve compression for gauges and counters. You can disable it or tune it via options.
+
 ```elixir
 # Sample time series data: {timestamp, value} tuples
 data = [
@@ -587,3 +589,28 @@ The tool provides decision guidelines to help you choose the optimal compression
 - Completely random data with no patterns
 - Text or binary data (use general-purpose compression)
 - Data with frequent large jumps between values
+## VictoriaMetrics-style preprocessing (default)
+
+VictoriaMetrics-style preprocessing is enabled by default. Disable or tune it using options as shown below.
+
+Enable an optional VictoriaMetrics-style preprocessing pipeline to improve Gorilla compression for gauges and counters (no zstd dependency required).
+
+- Enable during compression with opts:
+
+```elixir path=null start=null
+stream = for i <- 0..999, do: {1_700_000_000 + i, 100.0 + 0.01 * i}
+# Default (VM enabled):
+{:ok, bin} = GorillaStream.Compression.Gorilla.compress(stream)
+{:ok, back} = GorillaStream.Compression.Gorilla.decompress(bin)
+# Disable VM explicitly:
+{:ok, bin2} = GorillaStream.Compression.Gorilla.compress(stream, victoria_metrics: false)
+```
+
+Benchmarks
+
+```bash path=null start=null
+mix gorilla_stream.vm_benchmark 10000
+mix gorilla_stream.vm_benchmark_json --count 10000 --out vm_summary.json
+```
+
+Note: With VM enabled (default), an extended header (84 bytes) is emitted with flags and scale_decimals; with VM disabled, the v1 header (80 bytes) is used. The decoder supports both.

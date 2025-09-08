@@ -470,6 +470,46 @@ def compress_with_gc(data) do
 end
 ```
 
+## VictoriaMetrics-style preprocessing (default)
+
+GorillaStream enables VictoriaMetrics-style preprocessing by default before Gorilla compression to improve compression ratios.
+
+Options for compress/2 (opts form):
+- victoria_metrics: boolean (default false)
+- is_counter: boolean (default false)
+- scale_decimals: :auto | integer (default :auto)
+- zlib: boolean (default false)
+
+Examples (defaults and overrides)
+
+```elixir path=null start=null
+# Gauge series example (default VM enabled)
+stream = for i <- 0..999, do: {1_700_000_000 + i, 100.0 + 0.01 * i}
+{:ok, bin} = GorillaStream.Compression.Gorilla.compress(stream)
+{:ok, back} = GorillaStream.Compression.Gorilla.decompress(bin)
+# Disable VM explicitly
+{:ok, bin2} = GorillaStream.Compression.Gorilla.compress(stream, victoria_metrics: false)
+```
+
+```elixir path=null start=null
+# Counter series example (enable is_counter)
+values = [100.01, 110.02, 125.02, 125.02, 140.37]
+stream = Enum.with_index(values, fn v, i -> {1_700_000_000 + i, v} end)
+{:ok, bin} = GorillaStream.Compression.Gorilla.compress(stream, is_counter: true)
+{:ok, back} = GorillaStream.Compression.Gorilla.decompress(bin)
+```
+
+Benchmarks
+
+```bash path=null start=null
+mix gorilla_stream.vm_benchmark 10000
+mix gorilla_stream.vm_benchmark_json --count 10000 --out vm_summary.json
+```
+
+Header behavior (decoder supports both)
+- 84-byte extended header (with flags and scale_decimals) when VM is enabled (default)
+- 80-byte header when VM is disabled
+
 ## Troubleshooting
 
 ### Performance Issues

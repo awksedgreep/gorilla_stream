@@ -1,5 +1,6 @@
 defmodule GorillaStream.Performance.RealisticDataGeneratorTest do
   use ExUnit.Case, async: false
+  require Logger
 
   describe "realistic data generator" do
     @describetag :performance
@@ -29,8 +30,7 @@ defmodule GorillaStream.Performance.RealisticDataGeneratorTest do
       sorted_timestamps = Enum.sort(timestamps)
       assert timestamps == sorted_timestamps
 
-      IO.puts("Generated #{count} data points in #{Float.round(generation_time / 1000, 2)}ms")
-
+      Logger.info("Generated #{count} data points in #{Float.round(generation_time / 1000, 2)}ms")
       # Performance assertion - should generate quickly
       assert generation_time < 50_000,
              "Generation should take less than 50ms (took #{generation_time}μs)"
@@ -55,8 +55,7 @@ defmodule GorillaStream.Performance.RealisticDataGeneratorTest do
       # Should be around base temperature of 20.0
       assert avg_value > 18.0 and avg_value < 22.0
 
-      IO.puts("Generated #{count} data points in #{Float.round(generation_time / 1000, 2)}ms")
-
+      Logger.info("Generated #{count} data points in #{Float.round(generation_time / 1000, 2)}ms")
       # Performance assertion
       assert generation_time < 100_000,
              "Generation should take less than 100ms (took #{generation_time}μs)"
@@ -87,9 +86,8 @@ defmodule GorillaStream.Performance.RealisticDataGeneratorTest do
       # Should have good variation
       assert max_value - min_value > 8.0
 
-      IO.puts("Generated #{count} data points in #{Float.round(generation_time / 1000, 2)}ms")
-      IO.puts("Value range: #{Float.round(min_value, 2)}°C to #{Float.round(max_value, 2)}°C")
-
+      Logger.info("Generated #{count} data points in #{Float.round(generation_time / 1000, 2)}ms")
+      Logger.info("Value range: #{Float.round(min_value, 2)}°C to #{Float.round(max_value, 2)}°C")
       # Performance assertion
       assert generation_time < 200_000,
              "Generation should take less than 200ms (took #{generation_time}μs)"
@@ -131,12 +129,11 @@ defmodule GorillaStream.Performance.RealisticDataGeneratorTest do
       total_points = dataset_count * points_per_dataset
       avg_time_per_dataset = total_time / dataset_count
 
-      IO.puts("Generated #{dataset_count} datasets (#{total_points} total points)")
-      IO.puts("Total time: #{Float.round(total_time / 1000, 2)}ms")
-      IO.puts("Average time per dataset: #{Float.round(avg_time_per_dataset / 1000, 2)}ms")
-      IO.puts("GC runs during generation: #{gc_runs}")
-      IO.puts("Words reclaimed by GC: #{words_reclaimed}")
-
+      Logger.info("Generated #{dataset_count} datasets (#{total_points} total points)")
+      Logger.info("Total time: #{Float.round(total_time / 1000, 2)}ms")
+      Logger.info("Average time per dataset: #{Float.round(avg_time_per_dataset / 1000, 2)}ms")
+      Logger.info("GC runs during generation: #{gc_runs}")
+      Logger.info("Words reclaimed by GC: #{words_reclaimed}")
       # Performance assertions for low GC pressure
       assert avg_time_per_dataset < 50_000, "Each dataset should generate in <50ms"
       assert gc_runs < 100, "Should have reasonable GC pressure (got #{gc_runs} runs)"
@@ -163,10 +160,9 @@ defmodule GorillaStream.Performance.RealisticDataGeneratorTest do
       # Each tuple is {integer, float} ≈ 16 bytes + overhead
       memory_per_point = memory_used / count
 
-      IO.puts("Generated #{count} data points using #{memory_used} bytes")
-      IO.puts("Approx #{Float.round(memory_per_point, 1)} bytes per data point")
-      IO.puts("Generation time: #{Float.round(generation_time / 1000, 2)}ms")
-
+      Logger.info("Generated #{count} data points using #{memory_used} bytes")
+      Logger.info("Approx #{Float.round(memory_per_point, 1)} bytes per data point")
+      Logger.info("Generation time: #{Float.round(generation_time / 1000, 2)}ms")
       # Memory efficiency assertions
       assert memory_per_point < 150,
              "Should use less than 150 bytes per data point (got #{Float.round(memory_per_point, 1)})"
@@ -191,7 +187,7 @@ defmodule GorillaStream.Performance.RealisticDataGeneratorTest do
       # Should be different with different seed
       refute dataset1 == dataset3
 
-      IO.puts("Verified data reproducibility with deterministic seed")
+      Logger.info("Verified data reproducibility with deterministic seed")
     end
   end
 

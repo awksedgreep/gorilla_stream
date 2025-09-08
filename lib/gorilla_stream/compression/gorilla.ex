@@ -15,9 +15,19 @@ defmodule GorillaStream.Compression.Gorilla do
   @doc """
   Compresses a stream of {timestamp, number} data using the Gorilla algorithm.
 
+  By default, VictoriaMetrics-style preprocessing is ENABLED (victoria_metrics: true),
+  which applies value scaling and optional counter handling to improve compression.
+  You can pass keyword options to customize or disable this behavior.
+
   ## Parameters
   - `stream`: An enumerable of {timestamp, number} tuples
-  - `zlib_compression?`: Boolean flag to enable Zlib compression on the final output (default: false)
+  - Second argument may be either:
+    - `zlib_compression?` (boolean) to toggle zlib container compression (default: false), OR
+    - keyword options, supporting:
+      - `:victoria_metrics` (boolean, default: true)
+      - `:is_counter` (boolean, default: false)
+      - `:scale_decimals` (:auto | integer, default: :auto)
+      - `:zlib` (boolean, default: false)
 
   ## Returns
   - `{:ok, compressed_data}`: When compression is successful
@@ -29,12 +39,26 @@ defmodule GorillaStream.Compression.Gorilla do
       iex> is_binary(compressed)
       true
 
+      iex> # With zlib
       iex> stream = [{1609459200, 1.23}, {1609459201, 1.24}, {1609459202, 1.25}]
       iex> {:ok, compressed} = GorillaStream.Compression.Gorilla.compress(stream, true)
       iex> is_binary(compressed)
       true
+
+      iex> # Disable VictoriaMetrics preprocessing explicitly
+      iex> stream = [{1609459200, 1.23}, {1609459201, 1.24}, {1609459202, 1.25}]
+      iex> {:ok, compressed} = GorillaStream.Compression.Gorilla.compress(stream, victoria_metrics: false)
+      iex> is_binary(compressed)
+      true
+
+      iex> # Enable counters and custom scaling via opts
+      iex> stream = [{1609459200, 1.23}, {1609459201, 1.24}, {1609459202, 1.25}]
+      iex> {:ok, compressed} = GorillaStream.Compression.Gorilla.compress(stream, victoria_metrics: true, is_counter: true, scale_decimals: :auto)
+      iex> is_binary(compressed)
+      true
   """
-  def compress(stream, zlib_compression? \\ false) do
+  def compress(stream, opts_or_flag \\ false)
+  def compress(stream, zlib_compression?) when is_boolean(zlib_compression?) do
     case Enum.to_list(stream) do
       [] ->
         {:ok, <<>>}
@@ -44,9 +68,28 @@ defmodule GorillaStream.Compression.Gorilla do
         case validate_stream(data) do
           :ok ->
             # Compress the data
-            with {:ok, encoded_data} <- Encoder.encode(data),
+            with {:ok, encoded_data} <- Encoder.encode(data, victoria_metrics: true, is_counter: false, scale_decimals: :auto),
                  {:ok, compressed_data} <- apply_zlib_compression(encoded_data, zlib_compression?) do
               {:ok, compressed_data}
+            end
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+    end
+  end
+
+  def compress(stream, opts) when is_list(opts) do
+    case Enum.to_list(stream) do
+      [] ->
+        {:ok, <<>>}
+
+      data ->
+        case validate_stream(data) do
+          :ok ->
+            with {:ok, encoded_data} <- Encoder.encode(data, opts),
+                 {:ok, out} <- apply_container_compression(encoded_data, opts) do
+              {:ok, out}
             end
 
           {:error, reason} ->
@@ -61,7 +104,9 @@ defmodule GorillaStream.Compression.Gorilla do
 
   ## Parameters
   - `compressed_data`: The compressed data (binary)
-  - `zlib_compression?`: Boolean flag indicating if Zlib compression was applied (default: false)
+  - Second argument may be either:
+    - `zlib_compression?` (boolean) indicating if zlib was used (default: false), OR
+    - keyword options, supporting `:zlib` (boolean, default: false). Other VM options are read from the header automatically by the decoder.
 
   ## Returns
   - `{:ok, original_stream}`: When decompression is successful
@@ -73,7 +118,8 @@ defmodule GorillaStream.Compression.Gorilla do
       iex> GorillaStream.Compression.Gorilla.decompress(compressed, false)
       {:ok, [{1609459200, 1.23}, {1609459201, 1.24}, {1609459202, 1.25}]}
   """
-  def decompress(compressed_data, zlib_compression? \\ false) do
+  def decompress(compressed_data, opts_or_flag \\ false)
+  def decompress(compressed_data, zlib_compression?) when is_boolean(zlib_compression?) do
     case decompress_with_zlib(compressed_data, zlib_compression?) do
       {:ok, encoded_data} ->
         case Decoder.decode(encoded_data) do
@@ -86,6 +132,19 @@ defmodule GorillaStream.Compression.Gorilla do
 
       {:error, reason} ->
         {:error, "Zlib decompression failed: #{inspect(reason)}"}
+    end
+  end
+
+  def decompress(compressed_data, opts) when is_list(opts) do
+    case decompress_with_container(compressed_data, opts) do
+      {:ok, encoded_data} ->
+        case Decoder.decode(encoded_data) do
+          {:ok, original_stream} -> {:ok, original_stream}
+          {:error, reason} -> {:error, "Decompression failed: #{inspect(reason)}"}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -150,6 +209,23 @@ defmodule GorillaStream.Compression.Gorilla do
 
   defp decompress_with_zlib(data, false) do
     {:ok, data}
+  end
+
+  # Minimal container compression selector (zlib only for now)
+  defp apply_container_compression(data, opts) when is_list(opts) do
+    if Keyword.get(opts, :zlib, false) do
+      apply_zlib_compression(data, true)
+    else
+      {:ok, data}
+    end
+  end
+
+  defp decompress_with_container(data, opts) when is_list(opts) do
+    if Keyword.get(opts, :zlib, false) do
+      decompress_with_zlib(data, true)
+    else
+      {:ok, data}
+    end
   end
 end
 

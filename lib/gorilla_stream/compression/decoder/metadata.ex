@@ -53,6 +53,7 @@ defmodule GorillaStream.Compression.Decoder.Metadata do
   def extract_metadata(_), do: {%{count: 0}, <<>>}
 
   # Parse the metadata header
+  # Parse v1 (80 bytes) or v2 (84 bytes) headers
   defp parse_metadata_header(<<
          @magic_number::64,
          version::16,
@@ -70,51 +71,63 @@ defmodule GorillaStream.Compression.Decoder.Metadata do
          compression_ratio::float-64,
          creation_time::64,
          flags::32,
-         remaining_data::binary
+         rest::binary
        >>) do
-    if version <= @version and header_length == 80 and
-         byte_size(remaining_data) >= compressed_size do
-      first_value = bits_to_float(first_value_bits)
+    cond do
+      version <= @version and header_length == 80 and byte_size(rest) >= compressed_size ->
+        parse_with_scale(first_timestamp, first_delta, first_value_bits, timestamp_bit_length,
+          value_bit_length, total_bits, compression_ratio, creation_time, flags, 0, rest, compressed_size,
+          version, header_length, count, original_size, checksum)
 
-      timestamp_metadata = %{
-        count: count,
-        first_timestamp: first_timestamp,
-        first_delta: if(count > 1, do: first_delta, else: nil)
-      }
+      version <= @version and header_length == 84 and byte_size(rest) >= compressed_size + 4 ->
+        <<scale_decimals::32, remaining_data::binary>> = rest
+        parse_with_scale(first_timestamp, first_delta, first_value_bits, timestamp_bit_length,
+          value_bit_length, total_bits, compression_ratio, creation_time, flags, scale_decimals,
+          remaining_data, compressed_size, version, header_length, count, original_size, checksum)
 
-      value_metadata = %{
-        count: count,
-        first_value: first_value
-      }
-
-      metadata = %{
-        version: version,
-        header_length: header_length,
-        count: count,
-        compressed_size: compressed_size,
-        original_size: original_size,
-        checksum: checksum,
-        timestamp_bit_length: timestamp_bit_length,
-        value_bit_length: value_bit_length,
-        total_bits: total_bits,
-        compression_ratio: compression_ratio,
-        creation_time: creation_time,
-        flags: flags,
-        timestamp_metadata: timestamp_metadata,
-        value_metadata: value_metadata
-      }
-
-      # Extract only the compressed data portion
-      <<compressed_data::binary-size(compressed_size), _rest::binary>> = remaining_data
-
-      {:ok, metadata, compressed_data}
-    else
-      {:error, "Invalid header format or version"}
+      true ->
+        {:error, "Invalid header format or version"}
     end
   end
 
-  defp parse_metadata_header(_) do
-    {:error, "Invalid metadata header"}
+  defp parse_metadata_header(_), do: {:error, "Invalid metadata header"}
+
+  defp parse_with_scale(first_timestamp, first_delta, first_value_bits, timestamp_bit_length,
+         value_bit_length, total_bits, compression_ratio, creation_time, flags, scale_decimals,
+         data, compressed_size, version, header_length, count, original_size, checksum) do
+    first_value = bits_to_float(first_value_bits)
+
+    timestamp_metadata = %{
+      count: count,
+      first_timestamp: first_timestamp,
+      first_delta: if(count > 1, do: first_delta, else: nil)
+    }
+
+    value_metadata = %{
+      count: count,
+      first_value: first_value
+    }
+
+    metadata = %{
+      version: version,
+      header_length: header_length,
+      count: count,
+      compressed_size: compressed_size,
+      original_size: original_size,
+      checksum: checksum,
+      timestamp_bit_length: timestamp_bit_length,
+      value_bit_length: value_bit_length,
+      total_bits: total_bits,
+      compression_ratio: compression_ratio,
+      creation_time: creation_time,
+      flags: flags,
+      scale_decimals: scale_decimals,
+      timestamp_metadata: timestamp_metadata,
+      value_metadata: value_metadata
+    }
+
+    <<compressed_data::binary-size(compressed_size), _rest::binary>> = data
+    {:ok, metadata, compressed_data}
   end
 
   # Verify data integrity using checksum
@@ -156,7 +169,7 @@ defmodule GorillaStream.Compression.Decoder.Metadata do
         version > @version ->
           {:error, "Unsupported version: #{version}"}
 
-        header_length != 80 ->
+        header_length not in [80, 84] ->
           {:error, "Invalid header length: #{header_length}"}
 
         byte_size(binary) < header_length ->

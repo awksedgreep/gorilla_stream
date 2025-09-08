@@ -44,10 +44,17 @@ defmodule GorillaStream do
   Compresses time series data using the Gorilla algorithm.
 
   This is a convenience function that delegates to `GorillaStream.Compression.Gorilla.compress/2`.
+  VictoriaMetrics-style preprocessing is ENABLED by default.
 
   ## Parameters
   - `data` - List of `{timestamp, value}` tuples
-  - `zlib_compression?` - Optional boolean to enable additional zlib compression (default: false)
+  - Second argument may be either:
+    - `zlib_compression?` (boolean) to toggle zlib compression (default: false), OR
+    - keyword options, supporting:
+      - `:victoria_metrics` (boolean, default: true)
+      - `:is_counter` (boolean, default: false)
+      - `:scale_decimals` (:auto | integer, default: :auto)
+      - `:zlib` (boolean, default: false)
 
   ## Returns
   - `{:ok, compressed_binary}` - Success with compressed data
@@ -61,8 +68,13 @@ defmodule GorillaStream do
       true
 
   """
-  def compress(data, zlib_compression? \\ false) do
+  def compress(data, opts_or_flag \\ false)
+  def compress(data, zlib_compression?) when is_boolean(zlib_compression?) do
     Gorilla.compress(data, zlib_compression?)
+  end
+
+  def compress(data, opts) when is_list(opts) do
+    Gorilla.compress(data, opts)
   end
 
   @doc """
@@ -72,7 +84,9 @@ defmodule GorillaStream do
 
   ## Parameters
   - `compressed_data` - Binary data from compress/2
-  - `zlib_compression?` - Boolean indicating if zlib compression was used (default: false)
+  - Second argument may be either:
+    - `zlib_compression?` (boolean) indicating if zlib was used (default: false), OR
+    - keyword options, supporting `:zlib` (boolean, default: false)
 
   ## Returns
   - `{:ok, decompressed_data}` - List of `{timestamp, value}` tuples
@@ -87,8 +101,13 @@ defmodule GorillaStream do
       true
 
   """
-  def decompress(compressed_data, zlib_compression? \\ false) do
+  def decompress(compressed_data, opts_or_flag \\ false)
+  def decompress(compressed_data, zlib_compression?) when is_boolean(zlib_compression?) do
     Gorilla.decompress(compressed_data, zlib_compression?)
+  end
+
+  def decompress(compressed_data, opts) when is_list(opts) do
+    Gorilla.decompress(compressed_data, opts)
   end
 
   @doc """

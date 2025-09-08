@@ -1,5 +1,6 @@
 defmodule GorillaStream.CompressionComparisonTest do
   use ExUnit.Case
+  require Logger
   alias GorillaStream.Compression.Gorilla.{Encoder, Decoder}
 
   # 5 minutes for large dataset tests
@@ -8,7 +9,7 @@ defmodule GorillaStream.CompressionComparisonTest do
 
   describe "Gorilla vs Zlib Compression Analysis" do
     test "comprehensive compression comparison on realistic datasets" do
-      IO.puts("\n=== COMPREHENSIVE COMPRESSION ANALYSIS ===")
+Logger.info("\n=== COMPREHENSIVE COMPRESSION ANALYSIS ===")
 
       datasets = [
         # Small datasets (typical API responses)
@@ -43,20 +44,20 @@ defmodule GorillaStream.CompressionComparisonTest do
     end
 
     test "zlib compression levels comparison" do
-      IO.puts("\n=== ZLIB COMPRESSION LEVELS ANALYSIS ===")
+Logger.info("\n=== ZLIB COMPRESSION LEVELS ANALYSIS ===")
 
       # Test different zlib compression levels (1-9)
       data = generate_sensor_data(50_000, :mixed_patterns)
 
-      IO.puts("Dataset: Mixed Patterns (50K points)")
-      IO.puts("Original size: #{byte_size(data_to_binary(data))} bytes")
+Logger.info("Dataset: Mixed Patterns (50K points)")
+Logger.info("Original size: #{byte_size(data_to_binary(data))} bytes")
 
       # Gorilla baseline
       {gorilla_time, {:ok, gorilla_compressed}} = :timer.tc(fn -> Encoder.encode(data) end)
       gorilla_size = byte_size(gorilla_compressed)
       gorilla_ratio = gorilla_size / byte_size(data_to_binary(data))
 
-      IO.puts(
+Logger.info(
         "Gorilla: #{gorilla_size} bytes (#{Float.round(gorilla_ratio, 4)}) - #{div(gorilla_time, 1000)}ms"
       )
 
@@ -93,18 +94,18 @@ defmodule GorillaStream.CompressionComparisonTest do
         combined_ratio = combined_size / byte_size(original_binary)
         total_time = gorilla_time + combined_time
 
-        IO.puts(
+        Logger.info(
           "Zlib L#{level}: #{zlib_size} bytes (#{Float.round(zlib_ratio, 4)}) - #{div(zlib_time, 1000)}ms"
         )
 
-        IO.puts(
+        Logger.info(
           "  Combined: #{combined_size} bytes (#{Float.round(combined_ratio, 4)}) - #{div(total_time, 1000)}ms total"
         )
       end)
     end
 
     test "compression method decision matrix" do
-      IO.puts("\n=== COMPRESSION DECISION MATRIX ===")
+Logger.info("\n=== COMPRESSION DECISION MATRIX ===")
 
       test_scenarios = [
         # Real-time scenarios (latency critical)
@@ -283,12 +284,12 @@ defmodule GorillaStream.CompressionComparisonTest do
   end
 
   defp analyze_compression_methods(data, description) do
-    IO.puts("\n--- #{description} ---")
+    Logger.info("\n--- #{description} ---")
 
     original_binary = data_to_binary(data)
     original_size = byte_size(original_binary)
 
-    IO.puts("Original size: #{format_bytes(original_size)}")
+    Logger.info("Original size: #{format_bytes(original_size)}")
 
     # Gorilla compression
     {gorilla_encode_time, {:ok, gorilla_compressed}} =
@@ -337,29 +338,29 @@ defmodule GorillaStream.CompressionComparisonTest do
     total_decode_time = gorilla_decode_time + combined_decode_time
 
     # Print results
-    IO.puts(
+    Logger.info(
       "Gorilla:  #{format_bytes(gorilla_size)} (#{Float.round(gorilla_ratio, 3)}) - Encode: #{div(gorilla_encode_time, 1000)}ms, Decode: #{div(gorilla_decode_time, 1000)}ms"
     )
 
-    IO.puts(
+    Logger.info(
       "Zlib:     #{format_bytes(zlib_size)} (#{Float.round(zlib_ratio, 3)}) - Encode: #{div(zlib_encode_time, 1000)}ms, Decode: #{div(zlib_decode_time, 1000)}ms"
     )
 
-    IO.puts(
+    Logger.info(
       "Combined: #{format_bytes(combined_size)} (#{Float.round(combined_ratio, 3)}) - Encode: #{div(total_encode_time, 1000)}ms, Decode: #{div(total_decode_time, 1000)}ms"
     )
 
     # Calculate additional compression benefit
     additional_benefit = (gorilla_size - combined_size) / gorilla_size
-    IO.puts("Additional compression benefit: #{Float.round(additional_benefit * 100, 1)}%")
+    Logger.info("Additional compression benefit: #{Float.round(additional_benefit * 100, 1)}%")
 
     # Performance metrics
     # points/second
     gorilla_throughput = length(data) / (gorilla_encode_time / 1_000_000)
     combined_throughput = length(data) / (total_encode_time / 1_000_000)
 
-    IO.puts("Gorilla throughput: #{format_number(gorilla_throughput)} points/sec")
-    IO.puts("Combined throughput: #{format_number(combined_throughput)} points/sec")
+    Logger.info("Gorilla throughput: #{format_number(gorilla_throughput)} points/sec")
+    Logger.info("Combined throughput: #{format_number(combined_throughput)} points/sec")
 
     %{
       description: description,
@@ -390,7 +391,7 @@ defmodule GorillaStream.CompressionComparisonTest do
   end
 
   defp analyze_scenario(data, description, priority) do
-    IO.puts("\n--- #{description} (#{priority}) ---")
+    Logger.info("\n--- #{description} (#{priority}) ---")
 
     result = analyze_compression_methods(data, description)
 
@@ -421,11 +422,11 @@ defmodule GorillaStream.CompressionComparisonTest do
           end
       end
 
-    IO.puts("Recommendation: #{recommendation}")
+    Logger.info("Recommendation: #{recommendation}")
   end
 
   defp print_summary_analysis(results) do
-    IO.puts("\n=== SUMMARY ANALYSIS ===")
+    Logger.info("\n=== SUMMARY ANALYSIS ===")
 
     # Calculate averages
     avg_gorilla_ratio =
@@ -445,14 +446,14 @@ defmodule GorillaStream.CompressionComparisonTest do
     avg_combined_throughput =
       Enum.map(results, & &1.combined.throughput) |> Enum.sum() |> Kernel./(length(results))
 
-    IO.puts("Average Gorilla compression ratio: #{Float.round(avg_gorilla_ratio, 3)}")
-    IO.puts("Average Combined compression ratio: #{Float.round(avg_combined_ratio, 3)}")
+    Logger.info("Average Gorilla compression ratio: #{Float.round(avg_gorilla_ratio, 3)}")
+    Logger.info("Average Combined compression ratio: #{Float.round(avg_combined_ratio, 3)}")
 
-    IO.puts(
+    Logger.info(
       "Average additional benefit from zlib: #{Float.round(avg_additional_benefit * 100, 1)}%"
     )
 
-    IO.puts(
+    Logger.info(
       "Average throughput loss: #{Float.round((avg_gorilla_throughput - avg_combined_throughput) / avg_gorilla_throughput * 100, 1)}%"
     )
 
@@ -460,55 +461,55 @@ defmodule GorillaStream.CompressionComparisonTest do
     best_benefit = Enum.max_by(results, & &1.combined.additional_benefit)
     worst_benefit = Enum.min_by(results, & &1.combined.additional_benefit)
 
-    IO.puts(
+    Logger.info(
       "\nBest additional compression: #{best_benefit.description} (#{Float.round(best_benefit.combined.additional_benefit * 100, 1)}%)"
     )
 
-    IO.puts(
+    Logger.info(
       "Worst additional compression: #{worst_benefit.description} (#{Float.round(worst_benefit.combined.additional_benefit * 100, 1)}%)"
     )
   end
 
   defp print_recommendations(results) do
-    IO.puts("\n=== RECOMMENDATIONS ===")
+    Logger.info("\n=== RECOMMENDATIONS ===")
 
     high_benefit_datasets = Enum.filter(results, &(&1.combined.additional_benefit > 0.15))
     low_benefit_datasets = Enum.filter(results, &(&1.combined.additional_benefit < 0.05))
 
-    IO.puts("📈 HIGH BENEFIT from zlib (>15% additional compression):")
+    Logger.info("📈 HIGH BENEFIT from zlib (>15% additional compression):")
 
     Enum.each(high_benefit_datasets, fn result ->
-      IO.puts(
+      Logger.info(
         "  • #{result.description}: #{Float.round(result.combined.additional_benefit * 100, 1)}% benefit"
       )
     end)
 
-    IO.puts("\n📉 LOW BENEFIT from zlib (<5% additional compression):")
+    Logger.info("\n📉 LOW BENEFIT from zlib (<5% additional compression):")
 
     Enum.each(low_benefit_datasets, fn result ->
-      IO.puts(
+      Logger.info(
         "  • #{result.description}: #{Float.round(result.combined.additional_benefit * 100, 1)}% benefit"
       )
     end)
 
-    IO.puts("\n🎯 DECISION GUIDELINES:")
-    IO.puts("✅ Use Gorilla + zlib when:")
-    IO.puts("  • Space is critical (archival, long-term storage)")
-    IO.puts("  • Data has repetitive patterns (server logs, industrial sensors)")
-    IO.puts("  • Network bandwidth is expensive")
-    IO.puts("  • Processing time is not critical")
+    Logger.info("\n🎯 DECISION GUIDELINES:")
+    Logger.info("✅ Use Gorilla + zlib when:")
+    Logger.info("  • Space is critical (archival, long-term storage)")
+    Logger.info("  • Data has repetitive patterns (server logs, industrial sensors)")
+    Logger.info("  • Network bandwidth is expensive")
+    Logger.info("  • Processing time is not critical")
 
-    IO.puts("\n✅ Use Gorilla only when:")
-    IO.puts("  • Real-time processing required")
-    IO.puts("  • High throughput needed")
-    IO.puts("  • Data already highly compressed by Gorilla (>50% compression)")
-    IO.puts("  • Additional benefit < 10%")
+    Logger.info("\n✅ Use Gorilla only when:")
+    Logger.info("  • Real-time processing required")
+    Logger.info("  • High throughput needed")
+    Logger.info("  • Data already highly compressed by Gorilla (>50% compression)")
+    Logger.info("  • Additional benefit < 10%")
 
-    IO.puts("\n📊 RULE OF THUMB:")
-    IO.puts("  • Dataset < 10KB: Skip zlib (overhead not worth it)")
-    IO.puts("  • Dataset > 100KB + space critical: Always try zlib")
-    IO.puts("  • Real-time systems: Gorilla only")
-    IO.puts("  • High-throughput streaming: Test both and decide based on requirements")
+    Logger.info("\n📊 RULE OF THUMB:")
+    Logger.info("  • Dataset < 10KB: Skip zlib (overhead not worth it)")
+    Logger.info("  • Dataset > 100KB + space critical: Always try zlib")
+    Logger.info("  • Real-time systems: Gorilla only")
+    Logger.info("  • High-throughput streaming: Test both and decide based on requirements")
   end
 
   defp data_to_binary(data) do

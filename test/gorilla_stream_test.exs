@@ -93,7 +93,7 @@ defmodule GorillaStreamTest do
         {1_609_459_203, 0.0}
       ]
 
-      assert {:ok, compressed} = GorillaStream.Compression.Gorilla.compress(extreme_values, false)
+      assert {:ok, compressed} = GorillaStream.Compression.Gorilla.compress(extreme_values, victoria_metrics: false, zlib: false)
       assert {:ok, decompressed} = GorillaStream.Compression.Gorilla.decompress(compressed, false)
       assert decompressed == extreme_values
     end
@@ -255,7 +255,7 @@ defmodule GorillaStreamTest do
         {1_609_459_202, 1.23456789012347}
       ]
 
-      assert {:ok, compressed} = GorillaStream.Compression.Gorilla.compress(precision_data, false)
+      assert {:ok, compressed} = GorillaStream.Compression.Gorilla.compress(precision_data, victoria_metrics: false, zlib: false)
       assert {:ok, decompressed} = GorillaStream.Compression.Gorilla.decompress(compressed, false)
       assert decompressed == precision_data
     end
