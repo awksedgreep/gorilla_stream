@@ -71,6 +71,7 @@ defmodule GorillaStream do
 
   """
   def compress(data, opts_or_flag \\ false)
+
   def compress(data, zlib_compression?) when is_boolean(zlib_compression?) do
     Gorilla.compress(data, zlib_compression?)
   end
@@ -106,6 +107,7 @@ defmodule GorillaStream do
 
   """
   def decompress(compressed_data, opts_or_flag \\ false)
+
   def decompress(compressed_data, zlib_compression?) when is_boolean(zlib_compression?) do
     Gorilla.decompress(compressed_data, zlib_compression?)
   end

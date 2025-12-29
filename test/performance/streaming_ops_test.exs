@@ -1,5 +1,5 @@
 defmodule GorillaStream.Performance.StreamingOpsTest do
-use ExUnit.Case, async: false
+  use ExUnit.Case, async: false
   require Logger
   @moduletag :streaming_performance
   alias GorillaStream.Compression.Gorilla.{Encoder, Decoder}
@@ -10,7 +10,7 @@ use ExUnit.Case, async: false
     batch_size = 10_000
     total_batches = div(total_points, batch_size)
 
-Logger.info("\n=== Streaming Performance Test ===")
+    Logger.info("\n=== Streaming Performance Test ===")
     Logger.info("Total data points: #{total_points}")
     Logger.info("Batch size: #{batch_size}")
     Logger.info("Total batches: #{total_batches}")
@@ -37,7 +37,9 @@ Logger.info("\n=== Streaming Performance Test ===")
         processed_points = batch_num * batch_size
         ops_per_sec = processed_points / elapsed
 
-        Logger.info("Batch #{batch_num}/#{total_batches}: #{processed_points} points, #{Float.round(ops_per_sec, 0)} ops/sec")
+        Logger.info(
+          "Batch #{batch_num}/#{total_batches}: #{processed_points} points, #{Float.round(ops_per_sec, 0)} ops/sec"
+        )
       end
     end)
 
@@ -48,7 +50,6 @@ Logger.info("\n=== Streaming Performance Test ===")
     # Calculate final ops/sec
     total_ops_per_sec = total_points / total_time
 
-
     Logger.info("\n=== Final Results ===")
     Logger.info("Total time: #{Float.round(total_time, 2)} seconds")
     Logger.info("Total operations/sec: #{Float.round(total_ops_per_sec, 0)} ops/sec")
@@ -56,7 +57,7 @@ Logger.info("\n=== Streaming Performance Test ===")
     assert total_ops_per_sec > 10_000,
            "Should achieve at least 10k ops/sec, got #{Float.round(total_ops_per_sec, 0)}"
 
-Logger.info("Streaming test completed successfully")
+    Logger.info("Streaming test completed successfully")
   end
 
   @tag timeout: 300_000
@@ -74,7 +75,14 @@ Logger.info("Streaming test completed successfully")
 
     Enum.each(1..total_batches, fn batch_num ->
       batch_data = generate_batch_data(batch_size, batch_num)
-      {:ok, compressed} = Encoder.encode(batch_data, victoria_metrics: true, is_counter: false, scale_decimals: :auto)
+
+      {:ok, compressed} =
+        Encoder.encode(batch_data,
+          victoria_metrics: true,
+          is_counter: false,
+          scale_decimals: :auto
+        )
+
       {:ok, decompressed} = Decoder.decode(compressed)
       assert length(decompressed) == batch_size
 
@@ -83,7 +91,10 @@ Logger.info("Streaming test completed successfully")
         elapsed = (current_time - start_time) / 1_000_000
         processed_points = batch_num * batch_size
         ops_per_sec = processed_points / elapsed
-        Logger.info("Batch #{batch_num}/#{total_batches}: #{processed_points} points, #{Float.round(ops_per_sec, 0)} ops/sec")
+
+        Logger.info(
+          "Batch #{batch_num}/#{total_batches}: #{processed_points} points, #{Float.round(ops_per_sec, 0)} ops/sec"
+        )
       end
     end)
 

@@ -21,7 +21,14 @@ defmodule GorillaStream.Compression.MetadataV2Test do
 
   test "emits v2 header (84 bytes) with flags and scale_decimals when VM enabled" do
     stream = Enum.map(1..5, fn i -> {1_700_000_000 + i, 100.01 + i} end)
-    {:ok, bin} = Gorilla.compress(stream, victoria_metrics: true, is_counter: true, scale_decimals: 2, zlib: false)
+
+    {:ok, bin} =
+      Gorilla.compress(stream,
+        victoria_metrics: true,
+        is_counter: true,
+        scale_decimals: 2,
+        zlib: false
+      )
 
     {meta, _remaining} = DecMeta.extract_metadata(bin)
     assert meta.header_length == 84
@@ -33,4 +40,3 @@ defmodule GorillaStream.Compression.MetadataV2Test do
     assert meta.scale_decimals == 2
   end
 end
-

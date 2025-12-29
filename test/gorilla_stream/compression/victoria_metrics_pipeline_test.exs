@@ -24,7 +24,14 @@ defmodule GorillaStream.Compression.VictoriaMetricsPipelineTest do
     values = [100.01, 110.02, 125.02, 125.02, 140.37]
     stream = Enum.with_index(values, fn v, idx -> {1_700_000_000 + idx, v} end)
 
-    {:ok, bin} = Gorilla.compress(stream, victoria_metrics: true, is_counter: true, scale_decimals: :auto, zlib: false)
+    {:ok, bin} =
+      Gorilla.compress(stream,
+        victoria_metrics: true,
+        is_counter: true,
+        scale_decimals: :auto,
+        zlib: false
+      )
+
     {:ok, back} = Gorilla.decompress(bin)
 
     Enum.zip(stream, back)
@@ -34,4 +41,3 @@ defmodule GorillaStream.Compression.VictoriaMetricsPipelineTest do
     end)
   end
 end
-

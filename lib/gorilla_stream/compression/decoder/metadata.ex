@@ -75,15 +75,48 @@ defmodule GorillaStream.Compression.Decoder.Metadata do
        >>) do
     cond do
       version <= @version and header_length == 80 and byte_size(rest) >= compressed_size ->
-        parse_with_scale(first_timestamp, first_delta, first_value_bits, timestamp_bit_length,
-          value_bit_length, total_bits, compression_ratio, creation_time, flags, 0, rest, compressed_size,
-          version, header_length, count, original_size, checksum)
+        parse_with_scale(
+          first_timestamp,
+          first_delta,
+          first_value_bits,
+          timestamp_bit_length,
+          value_bit_length,
+          total_bits,
+          compression_ratio,
+          creation_time,
+          flags,
+          0,
+          rest,
+          compressed_size,
+          version,
+          header_length,
+          count,
+          original_size,
+          checksum
+        )
 
       version <= @version and header_length == 84 and byte_size(rest) >= compressed_size + 4 ->
         <<scale_decimals::32, remaining_data::binary>> = rest
-        parse_with_scale(first_timestamp, first_delta, first_value_bits, timestamp_bit_length,
-          value_bit_length, total_bits, compression_ratio, creation_time, flags, scale_decimals,
-          remaining_data, compressed_size, version, header_length, count, original_size, checksum)
+
+        parse_with_scale(
+          first_timestamp,
+          first_delta,
+          first_value_bits,
+          timestamp_bit_length,
+          value_bit_length,
+          total_bits,
+          compression_ratio,
+          creation_time,
+          flags,
+          scale_decimals,
+          remaining_data,
+          compressed_size,
+          version,
+          header_length,
+          count,
+          original_size,
+          checksum
+        )
 
       true ->
         {:error, "Invalid header format or version"}
@@ -92,9 +125,25 @@ defmodule GorillaStream.Compression.Decoder.Metadata do
 
   defp parse_metadata_header(_), do: {:error, "Invalid metadata header"}
 
-  defp parse_with_scale(first_timestamp, first_delta, first_value_bits, timestamp_bit_length,
-         value_bit_length, total_bits, compression_ratio, creation_time, flags, scale_decimals,
-         data, compressed_size, version, header_length, count, original_size, checksum) do
+  defp parse_with_scale(
+         first_timestamp,
+         first_delta,
+         first_value_bits,
+         timestamp_bit_length,
+         value_bit_length,
+         total_bits,
+         compression_ratio,
+         creation_time,
+         flags,
+         scale_decimals,
+         data,
+         compressed_size,
+         version,
+         header_length,
+         count,
+         original_size,
+         checksum
+       ) do
     first_value = bits_to_float(first_value_bits)
 
     timestamp_metadata = %{

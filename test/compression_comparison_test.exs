@@ -9,7 +9,7 @@ defmodule GorillaStream.CompressionComparisonTest do
 
   describe "Gorilla vs Zlib Compression Analysis" do
     test "comprehensive compression comparison on realistic datasets" do
-Logger.info("\n=== COMPREHENSIVE COMPRESSION ANALYSIS ===")
+      Logger.info("\n=== COMPREHENSIVE COMPRESSION ANALYSIS ===")
 
       datasets = [
         # Small datasets (typical API responses)
@@ -44,20 +44,20 @@ Logger.info("\n=== COMPREHENSIVE COMPRESSION ANALYSIS ===")
     end
 
     test "zlib compression levels comparison" do
-Logger.info("\n=== ZLIB COMPRESSION LEVELS ANALYSIS ===")
+      Logger.info("\n=== ZLIB COMPRESSION LEVELS ANALYSIS ===")
 
       # Test different zlib compression levels (1-9)
       data = generate_sensor_data(50_000, :mixed_patterns)
 
-Logger.info("Dataset: Mixed Patterns (50K points)")
-Logger.info("Original size: #{byte_size(data_to_binary(data))} bytes")
+      Logger.info("Dataset: Mixed Patterns (50K points)")
+      Logger.info("Original size: #{byte_size(data_to_binary(data))} bytes")
 
       # Gorilla baseline
       {gorilla_time, {:ok, gorilla_compressed}} = :timer.tc(fn -> Encoder.encode(data) end)
       gorilla_size = byte_size(gorilla_compressed)
       gorilla_ratio = gorilla_size / byte_size(data_to_binary(data))
 
-Logger.info(
+      Logger.info(
         "Gorilla: #{gorilla_size} bytes (#{Float.round(gorilla_ratio, 4)}) - #{div(gorilla_time, 1000)}ms"
       )
 
@@ -105,7 +105,7 @@ Logger.info(
     end
 
     test "compression method decision matrix" do
-Logger.info("\n=== COMPRESSION DECISION MATRIX ===")
+      Logger.info("\n=== COMPRESSION DECISION MATRIX ===")
 
       test_scenarios = [
         # Real-time scenarios (latency critical)

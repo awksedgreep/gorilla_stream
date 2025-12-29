@@ -39,8 +39,10 @@ defmodule GorillaStream.Compression.Enhancements do
   end
 
   defp decimals_for(v) when is_integer(v), do: 0
+
   defp decimals_for(v) do
     s = :erlang.float_to_binary(v * 1.0, [:compact, {:decimals, 10}])
+
     case String.split(s, ".") do
       [_i, frac] -> String.trim_trailing(frac, "0") |> String.length()
       _ -> 0
@@ -53,6 +55,7 @@ defmodule GorillaStream.Compression.Enhancements do
   """
   @spec delta_encode_counter([number()]) :: [number()]
   def delta_encode_counter([]), do: []
+
   def delta_encode_counter([h | t]) do
     {deltas, _} = Enum.reduce(t, {[h], h}, fn x, {acc, prev} -> {[x - prev | acc], x} end)
     Enum.reverse(deltas)
@@ -63,8 +66,14 @@ defmodule GorillaStream.Compression.Enhancements do
   """
   @spec delta_decode_counter([number()]) :: [number()]
   def delta_decode_counter([]), do: []
+
   def delta_decode_counter([h | t]) do
-    {vals, _} = Enum.reduce(t, {[h], h}, fn d, {acc, prev} -> v = prev + d; {[v | acc], v} end)
+    {vals, _} =
+      Enum.reduce(t, {[h], h}, fn d, {acc, prev} ->
+        v = prev + d
+        {[v | acc], v}
+      end)
+
     Enum.reverse(vals)
   end
 
@@ -74,13 +83,14 @@ defmodule GorillaStream.Compression.Enhancements do
   @spec monotonic_non_decreasing?([number()]) :: boolean()
   def monotonic_non_decreasing?([]), do: true
   def monotonic_non_decreasing?([_]), do: true
+
   def monotonic_non_decreasing?([a, b | rest]) do
     if b < a, do: false, else: monotonic_non_decreasing?([b | rest])
   end
 
   defp pow10(0), do: 1
+
   defp pow10(n) when n > 0 do
     :math.pow(10, n) |> round()
   end
 end
-

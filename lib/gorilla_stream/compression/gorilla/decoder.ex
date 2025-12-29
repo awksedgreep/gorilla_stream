@@ -120,7 +120,12 @@ defmodule GorillaStream.Compression.Gorilla.Decoder do
       n = Map.get(metadata, :scale_decimals, 0)
       scale = if n > 0, do: :math.pow(10, n), else: 1.0
       unscaled = if n > 0, do: Enum.map(values, &(&1 / scale)), else: values
-      decoded = if is_counter?, do: GorillaStream.Compression.Enhancements.delta_decode_counter(unscaled), else: unscaled
+
+      decoded =
+        if is_counter?,
+          do: GorillaStream.Compression.Enhancements.delta_decode_counter(unscaled),
+          else: unscaled
+
       {:ok, decoded}
     else
       {:ok, values}

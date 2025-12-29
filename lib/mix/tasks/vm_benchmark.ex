@@ -48,17 +48,35 @@ defmodule Mix.Tasks.GorillaStream.VmBenchmark do
     pct = fn r -> Float.round((1.0 - r) * 100.0, 1) end
 
     # Gorilla only
-    {t_g, {:ok, g_bin}} = :timer.tc(fn -> Gorilla.compress(data, zlib: false, victoria_metrics: false) end)
+    {t_g, {:ok, g_bin}} =
+      :timer.tc(fn -> Gorilla.compress(data, zlib: false, victoria_metrics: false) end)
+
     g_sz = byte_size(g_bin)
 
     # VM auto (gauge path)
     {t_vm_auto, {:ok, vm_auto_bin}} =
-      :timer.tc(fn -> Gorilla.compress(data, zlib: false, victoria_metrics: true, is_counter: false, scale_decimals: :auto) end)
+      :timer.tc(fn ->
+        Gorilla.compress(data,
+          zlib: false,
+          victoria_metrics: true,
+          is_counter: false,
+          scale_decimals: :auto
+        )
+      end)
+
     vm_auto_sz = byte_size(vm_auto_bin)
 
     # VM 2dp (gauge path)
     {t_vm_2dp, {:ok, vm_2dp_bin}} =
-      :timer.tc(fn -> Gorilla.compress(data, zlib: false, victoria_metrics: true, is_counter: false, scale_decimals: 2) end)
+      :timer.tc(fn ->
+        Gorilla.compress(data,
+          zlib: false,
+          victoria_metrics: true,
+          is_counter: false,
+          scale_decimals: 2
+        )
+      end)
+
     vm_2dp_sz = byte_size(vm_2dp_bin)
 
     # zlib only on raw data
@@ -76,12 +94,29 @@ defmodule Mix.Tasks.GorillaStream.VmBenchmark do
     Logger.info("\n=== #{label} ===")
     Logger.info("Original: #{orig_size} bytes")
 
-    Logger.info("Gorilla only      : #{g_sz} bytes (ratio=#{ratio.(g_sz)}, saved=#{pct.(ratio.(g_sz))}% , enc_us=#{t_g})")
-    Logger.info("Gorilla+VM auto   : #{vm_auto_sz} bytes (ratio=#{ratio.(vm_auto_sz)}, saved=#{pct.(ratio.(vm_auto_sz))}% , enc_us=#{t_vm_auto})")
-    Logger.info("Gorilla+VM 2dp    : #{vm_2dp_sz} bytes (ratio=#{ratio.(vm_2dp_sz)}, saved=#{pct.(ratio.(vm_2dp_sz))}% , enc_us=#{t_vm_2dp})")
-    Logger.info("zlib only         : #{z_sz} bytes (ratio=#{ratio.(z_sz)}, saved=#{pct.(ratio.(z_sz))}% , enc_us=#{t_z})")
-    Logger.info("Gorilla -> zlib   : #{gz_sz} bytes (ratio=#{ratio.(gz_sz)}, saved=#{pct.(ratio.(gz_sz))}% , enc_us=#{t_g + t_gz})")
-    Logger.info("Gorilla+VM2dp->zlb: #{vmz_sz} bytes (ratio=#{ratio.(vmz_sz)}, saved=#{pct.(ratio.(vmz_sz))}% , enc_us=#{t_vm_2dp + t_vmz})")
+    Logger.info(
+      "Gorilla only      : #{g_sz} bytes (ratio=#{ratio.(g_sz)}, saved=#{pct.(ratio.(g_sz))}% , enc_us=#{t_g})"
+    )
+
+    Logger.info(
+      "Gorilla+VM auto   : #{vm_auto_sz} bytes (ratio=#{ratio.(vm_auto_sz)}, saved=#{pct.(ratio.(vm_auto_sz))}% , enc_us=#{t_vm_auto})"
+    )
+
+    Logger.info(
+      "Gorilla+VM 2dp    : #{vm_2dp_sz} bytes (ratio=#{ratio.(vm_2dp_sz)}, saved=#{pct.(ratio.(vm_2dp_sz))}% , enc_us=#{t_vm_2dp})"
+    )
+
+    Logger.info(
+      "zlib only         : #{z_sz} bytes (ratio=#{ratio.(z_sz)}, saved=#{pct.(ratio.(z_sz))}% , enc_us=#{t_z})"
+    )
+
+    Logger.info(
+      "Gorilla -> zlib   : #{gz_sz} bytes (ratio=#{ratio.(gz_sz)}, saved=#{pct.(ratio.(gz_sz))}% , enc_us=#{t_g + t_gz})"
+    )
+
+    Logger.info(
+      "Gorilla+VM2dp->zlb: #{vmz_sz} bytes (ratio=#{ratio.(vmz_sz)}, saved=#{pct.(ratio.(vmz_sz))}% , enc_us=#{t_vm_2dp + t_vmz})"
+    )
 
     # Validate that VM paths round-trip
     {:ok, _} = Gorilla.decompress(vm_auto_bin)
@@ -97,6 +132,7 @@ defmodule Mix.Tasks.GorillaStream.VmBenchmark do
   defp generate_step(n) do
     base = 1_700_000_000
     step = max(1, div(n, 10))
+
     for i <- 0..(n - 1) do
       level = div(i, step)
       {base + i, level * 1.0}
@@ -105,6 +141,7 @@ defmodule Mix.Tasks.GorillaStream.VmBenchmark do
 
   defp generate_gauge_2dp(n) do
     base = 1_700_000_000
+
     for i <- 0..(n - 1) do
       v = 100.0 + 0.01 * i + :math.sin(i / 50) * 0.1
       {base + i, Float.round(v, 2)}
@@ -114,8 +151,13 @@ defmodule Mix.Tasks.GorillaStream.VmBenchmark do
   defp generate_counter_2dp(n) do
     base = 1_700_000_000
     increments = Stream.repeatedly(fn -> :rand.uniform(5) - 1 end) |> Enum.take(n)
-    {vals, _} = Enum.map_reduce(increments, 1000.0, fn inc, acc -> v = acc + inc; {v, v} end)
+
+    {vals, _} =
+      Enum.map_reduce(increments, 1000.0, fn inc, acc ->
+        v = acc + inc
+        {v, v}
+      end)
+
     for {v, i} <- Enum.with_index(vals), do: {base + i, Float.round(v + 0.01, 2)}
   end
 end
-

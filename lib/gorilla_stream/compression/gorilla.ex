@@ -68,6 +68,7 @@ defmodule GorillaStream.Compression.Gorilla do
       true
   """
   def compress(stream, opts_or_flag \\ false)
+
   def compress(stream, zlib_compression?) when is_boolean(zlib_compression?) do
     case Enum.to_list(stream) do
       [] ->
@@ -78,7 +79,12 @@ defmodule GorillaStream.Compression.Gorilla do
         case validate_stream(data) do
           :ok ->
             # Compress the data
-            with {:ok, encoded_data} <- Encoder.encode(data, victoria_metrics: true, is_counter: false, scale_decimals: :auto),
+            with {:ok, encoded_data} <-
+                   Encoder.encode(data,
+                     victoria_metrics: true,
+                     is_counter: false,
+                     scale_decimals: :auto
+                   ),
                  {:ok, compressed_data} <- apply_zlib_compression(encoded_data, zlib_compression?) do
               {:ok, compressed_data}
             end
@@ -132,6 +138,7 @@ defmodule GorillaStream.Compression.Gorilla do
       {:ok, [{1609459200, 1.23}, {1609459201, 1.24}, {1609459202, 1.25}]}
   """
   def decompress(compressed_data, opts_or_flag \\ false)
+
   def decompress(compressed_data, zlib_compression?) when is_boolean(zlib_compression?) do
     case decompress_with_zlib(compressed_data, zlib_compression?) do
       {:ok, encoded_data} ->

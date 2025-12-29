@@ -69,15 +69,31 @@ defmodule GorillaStream.Performance.BenchmarksTest do
 
       # Gauge
       {g_b_t, {:ok, g_b}} = :timer.tc(fn -> Encoder.encode(gauge) end)
-      {g_vm_t, {:ok, g_vm}} = :timer.tc(fn -> Encoder.encode(gauge, victoria_metrics: true, is_counter: false, scale_decimals: :auto) end)
+
+      {g_vm_t, {:ok, g_vm}} =
+        :timer.tc(fn ->
+          Encoder.encode(gauge, victoria_metrics: true, is_counter: false, scale_decimals: :auto)
+        end)
+
       g_orig = length(gauge) * 16
-      Logger.info("[VM gauge] baseline_ratio=#{Float.round(byte_size(g_b) / g_orig, 4)} vm_ratio=#{Float.round(byte_size(g_vm) / g_orig, 4)} baseline_us=#{g_b_t} vm_us=#{g_vm_t}")
+
+      Logger.info(
+        "[VM gauge] baseline_ratio=#{Float.round(byte_size(g_b) / g_orig, 4)} vm_ratio=#{Float.round(byte_size(g_vm) / g_orig, 4)} baseline_us=#{g_b_t} vm_us=#{g_vm_t}"
+      )
 
       # Counter
       {c_b_t, {:ok, c_b}} = :timer.tc(fn -> Encoder.encode(counter) end)
-      {c_vm_t, {:ok, c_vm}} = :timer.tc(fn -> Encoder.encode(counter, victoria_metrics: true, is_counter: true, scale_decimals: :auto) end)
+
+      {c_vm_t, {:ok, c_vm}} =
+        :timer.tc(fn ->
+          Encoder.encode(counter, victoria_metrics: true, is_counter: true, scale_decimals: :auto)
+        end)
+
       c_orig = length(counter) * 16
-      Logger.info("[VM counter] baseline_ratio=#{Float.round(byte_size(c_b) / c_orig, 4)} vm_ratio=#{Float.round(byte_size(c_vm) / c_orig, 4)} baseline_us=#{c_b_t} vm_us=#{c_vm_t}")
+
+      Logger.info(
+        "[VM counter] baseline_ratio=#{Float.round(byte_size(c_b) / c_orig, 4)} vm_ratio=#{Float.round(byte_size(c_vm) / c_orig, 4)} baseline_us=#{c_b_t} vm_us=#{c_vm_t}"
+      )
 
       # Sanity: VM should not be worse by more than a factor on typical data
       assert byte_size(g_vm) <= byte_size(g_b) * 1.05
@@ -289,14 +305,18 @@ defmodule GorillaStream.Performance.BenchmarksTest do
       Logger.info("")
       Logger.info("Gorilla:")
 
-Logger.info(
+      Logger.info(
         "  Size: #{byte_size(gorilla_compressed)} bytes (ratio: #{Float.round(gorilla_ratio, 4)})"
       )
 
       Logger.info("  Encode: #{gorilla_encode_time}μs, Decode: #{gorilla_decode_time}μs")
       Logger.info("")
       Logger.info("Binary (baseline):")
-      Logger.info("  Size: #{byte_size(binary_data)} bytes (ratio: #{Float.round(binary_ratio, 4)})")
+
+      Logger.info(
+        "  Size: #{byte_size(binary_data)} bytes (ratio: #{Float.round(binary_ratio, 4)})"
+      )
+
       Logger.info("  Encode: #{binary_encode_time}μs, Decode: #{binary_decode_time}μs")
       Logger.info("")
       Logger.info("Zlib:")
@@ -404,7 +424,6 @@ Logger.info(
       {base_timestamp + i, value}
     end
   end
-
 
   defp generate_alternating_pattern(count) do
     base_timestamp = 1_609_459_200

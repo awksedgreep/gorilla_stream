@@ -196,20 +196,37 @@ defmodule GorillaStream.Performance.SustainedThroughputTest do
       Logger.info("Total batches: #{total_batches}")
 
       # Warm up
-      {:ok, _} = Encoder.encode(base_data, victoria_metrics: true, is_counter: false, scale_decimals: :auto)
+      {:ok, _} =
+        Encoder.encode(base_data,
+          victoria_metrics: true,
+          is_counter: false,
+          scale_decimals: :auto
+        )
 
       {total_test_time, {_times, _throughputs}} =
         :timer.tc(fn ->
           Enum.reduce(1..total_batches, {[], []}, fn batch_num, {t_acc, thr_acc} ->
             batch = generate_time_shifted_data(base_data, batch_num * data_points_per_batch)
-            {encode_time, {:ok, _}} = :timer.tc(fn ->
-              Encoder.encode(batch, victoria_metrics: true, is_counter: false, scale_decimals: :auto)
-            end)
+
+            {encode_time, {:ok, _}} =
+              :timer.tc(fn ->
+                Encoder.encode(batch,
+                  victoria_metrics: true,
+                  is_counter: false,
+                  scale_decimals: :auto
+                )
+              end)
+
             thr = data_points_per_batch / (encode_time / 1_000_000)
+
             if rem(batch_num, 10) == 0 do
-              avg = (Enum.sum(thr_acc ++ [thr]) / length(thr_acc ++ [thr]))
-              Logger.info("Batch #{batch_num}/#{total_batches}: Current=#{Float.round(thr, 0)} pts/sec, Avg=#{Float.round(avg, 0)} pts/sec")
+              avg = Enum.sum(thr_acc ++ [thr]) / length(thr_acc ++ [thr])
+
+              Logger.info(
+                "Batch #{batch_num}/#{total_batches}: Current=#{Float.round(thr, 0)} pts/sec, Avg=#{Float.round(avg, 0)} pts/sec"
+              )
             end
+
             {[encode_time | t_acc], [thr | thr_acc]}
           end)
         end)
@@ -230,20 +247,33 @@ defmodule GorillaStream.Performance.SustainedThroughputTest do
       Logger.info("Data points per batch: #{data_points_per_batch}")
       Logger.info("Total batches: #{total_batches}")
 
-      {:ok, _} = Encoder.encode(base_data, victoria_metrics: true, is_counter: true, scale_decimals: :auto)
+      {:ok, _} =
+        Encoder.encode(base_data, victoria_metrics: true, is_counter: true, scale_decimals: :auto)
 
       {total_test_time, {_times, _throughputs}} =
         :timer.tc(fn ->
           Enum.reduce(1..total_batches, {[], []}, fn batch_num, {t_acc, thr_acc} ->
             batch = generate_time_shifted_data(base_data, batch_num * data_points_per_batch)
-            {encode_time, {:ok, _}} = :timer.tc(fn ->
-              Encoder.encode(batch, victoria_metrics: true, is_counter: true, scale_decimals: :auto)
-            end)
+
+            {encode_time, {:ok, _}} =
+              :timer.tc(fn ->
+                Encoder.encode(batch,
+                  victoria_metrics: true,
+                  is_counter: true,
+                  scale_decimals: :auto
+                )
+              end)
+
             thr = data_points_per_batch / (encode_time / 1_000_000)
+
             if rem(batch_num, 10) == 0 do
-              avg = (Enum.sum(thr_acc ++ [thr]) / length(thr_acc ++ [thr]))
-              Logger.info("Batch #{batch_num}/#{total_batches}: Current=#{Float.round(thr, 0)} pts/sec, Avg=#{Float.round(avg, 0)} pts/sec")
+              avg = Enum.sum(thr_acc ++ [thr]) / length(thr_acc ++ [thr])
+
+              Logger.info(
+                "Batch #{batch_num}/#{total_batches}: Current=#{Float.round(thr, 0)} pts/sec, Avg=#{Float.round(avg, 0)} pts/sec"
+              )
             end
+
             {[encode_time | t_acc], [thr | thr_acc]}
           end)
         end)
@@ -418,7 +448,13 @@ defmodule GorillaStream.Performance.SustainedThroughputTest do
   defp generate_counter_data(count) do
     base = 1_700_000_000
     increments = Stream.repeatedly(fn -> :rand.uniform(5) - 1 end) |> Enum.take(count)
-    {vals, _} = Enum.map_reduce(increments, 1_000.0, fn inc, acc -> v = acc + inc; {v + 0.01, v} end)
+
+    {vals, _} =
+      Enum.map_reduce(increments, 1_000.0, fn inc, acc ->
+        v = acc + inc
+        {v + 0.01, v}
+      end)
+
     Enum.with_index(vals, fn v, i -> {base + i, v} end)
   end
 end

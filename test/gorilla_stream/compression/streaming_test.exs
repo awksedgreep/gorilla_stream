@@ -98,7 +98,11 @@ defmodule GorillaStream.Compression.StreamingTest do
         |> Enum.to_list()
 
       assert length(results) == 2
-      assert Enum.all?(results, fn {:ok, _, _} -> true; _ -> false end)
+
+      assert Enum.all?(results, fn
+               {:ok, _, _} -> true
+               _ -> false
+             end)
     end
 
     test "compress_stream/2 with compression: :zstd" do
@@ -250,7 +254,9 @@ defmodule GorillaStream.Compression.StreamingTest do
       # Average bytes per point should be reasonable for slowly-changing time series
       # Raw data is 16 bytes/point, we expect significant compression
       avg_bytes_per_point = total_bytes / total_points
-      assert avg_bytes_per_point < 16, "Expected compression, got #{avg_bytes_per_point} bytes/point (raw is 16)"
+
+      assert avg_bytes_per_point < 16,
+             "Expected compression, got #{avg_bytes_per_point} bytes/point (raw is 16)"
     end
   end
 end

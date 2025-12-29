@@ -52,8 +52,14 @@ defmodule GorillaStream.Compression.Gorilla.Encoder do
           {pre_values, vm_meta} =
             if victoria_metrics? do
               # Apply VM-style preprocessing
-              values1 = if is_counter?, do: GorillaStream.Compression.Enhancements.delta_encode_counter(values), else: values
-              {scaled, n} = GorillaStream.Compression.Enhancements.scale_floats_to_ints(values1, scale_opt)
+              values1 =
+                if is_counter?,
+                  do: GorillaStream.Compression.Enhancements.delta_encode_counter(values),
+                  else: values
+
+              {scaled, n} =
+                GorillaStream.Compression.Enhancements.scale_floats_to_ints(values1, scale_opt)
+
               {scaled, %{victoria_metrics: true, is_counter: is_counter?, scale_decimals: n}}
             else
               {values, %{victoria_metrics: false, is_counter: false, scale_decimals: 0}}
@@ -87,7 +93,8 @@ defmodule GorillaStream.Compression.Gorilla.Encoder do
   end
 
   # Fallback clause for invalid input types
-  def encode(_, _opts), do: {:error, "Invalid input data - expected list of {timestamp, float} tuples"}
+  def encode(_, _opts),
+    do: {:error, "Invalid input data - expected list of {timestamp, float} tuples"}
 
   # Fast validation that checks input format without full enumeration
   defp validate_input_data_fast(data) do

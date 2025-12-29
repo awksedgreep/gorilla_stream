@@ -100,6 +100,7 @@ defmodule GorillaStream.Compression.ZstdIntegrationTest do
 
       # zstd should be within 50% of zlib size (could be better or slightly worse)
       ratio = zstd_size / zlib_size
+
       assert ratio >= 0.5 and ratio <= 1.5,
              "zstd: #{zstd_size} vs zlib: #{zlib_size} (ratio: #{ratio})"
     end

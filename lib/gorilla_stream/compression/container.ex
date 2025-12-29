@@ -174,7 +174,8 @@ defmodule GorillaStream.Compression.Container do
         end
       end
     else
-      {:error, "Zstd compression requested but ezstd is not installed. Add {:ezstd, \"~> 1.2\"} to your dependencies."}
+      {:error,
+       "Zstd compression requested but ezstd is not installed. Add {:ezstd, \"~> 1.2\"} to your dependencies."}
     end
   end
 
@@ -215,7 +216,8 @@ defmodule GorillaStream.Compression.Container do
         end
       end
     else
-      {:error, "Zstd decompression requested but ezstd is not installed. Add {:ezstd, \"~> 1.2\"} to your dependencies."}
+      {:error,
+       "Zstd decompression requested but ezstd is not installed. Add {:ezstd, \"~> 1.2\"} to your dependencies."}
     end
   end
 

@@ -34,4 +34,3 @@ defmodule GorillaStream.Compression.EnhancementsTest do
     refute Enhancements.monotonic_non_decreasing?([1, 2, 1])
   end
 end
-

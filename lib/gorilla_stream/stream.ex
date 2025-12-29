@@ -70,7 +70,8 @@ defmodule GorillaStream.Stream do
     |> Stream.chunk_every(chunk_size)
     |> Stream.map(fn chunk ->
       with {:ok, gorilla_compressed} <- Encoder.encode(chunk, encoder_opts),
-           {:ok, final_compressed} <- Container.compress(gorilla_compressed, compression: compression) do
+           {:ok, final_compressed} <-
+             Container.compress(gorilla_compressed, compression: compression) do
         metadata = %{
           original_points: length(chunk),
           gorilla_size: byte_size(gorilla_compressed),

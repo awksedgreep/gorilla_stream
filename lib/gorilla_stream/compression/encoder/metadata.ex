@@ -72,7 +72,9 @@ defmodule GorillaStream.Compression.Encoder.Metadata do
     first_value_bits = float_to_bits(first_value)
 
     # VM meta (optional)
-    vm_meta = Map.get(metadata, :vm_meta, %{victoria_metrics: false, is_counter: false, scale_decimals: 0})
+    vm_meta =
+      Map.get(metadata, :vm_meta, %{victoria_metrics: false, is_counter: false, scale_decimals: 0})
+
     vm_enabled = Map.get(vm_meta, :victoria_metrics, false)
     is_counter = Map.get(vm_meta, :is_counter, false)
     scale_decimals = Map.get(vm_meta, :scale_decimals, 0)

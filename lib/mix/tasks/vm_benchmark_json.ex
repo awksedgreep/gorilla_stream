@@ -16,13 +16,22 @@ defmodule Mix.Tasks.GorillaStream.VmBenchmarkJson do
   def run(args) do
     Mix.Task.run("app.start")
 
-    {opts, positional, _} = OptionParser.parse(args, switches: [count: :integer, out: :string], aliases: [n: :count, o: :out])
+    {opts, positional, _} =
+      OptionParser.parse(args,
+        switches: [count: :integer, out: :string],
+        aliases: [n: :count, o: :out]
+      )
 
     count =
       cond do
-        is_integer(opts[:count]) -> opts[:count]
-        match?([_ | _], positional) and integer_string?(hd(positional)) -> String.to_integer(hd(positional))
-        true -> 10_000
+        is_integer(opts[:count]) ->
+          opts[:count]
+
+        match?([_ | _], positional) and integer_string?(hd(positional)) ->
+          String.to_integer(hd(positional))
+
+        true ->
+          10_000
       end
 
     out_path = opts[:out]
@@ -31,16 +40,40 @@ defmodule Mix.Tasks.GorillaStream.VmBenchmarkJson do
     counter = generate_counter(count)
 
     # Gauge baseline and VM
-    {g_t1, {:ok, g_bin1}} = :timer.tc(fn -> Gorilla.compress(gauge, zlib: false, victoria_metrics: false) end)
+    {g_t1, {:ok, g_bin1}} =
+      :timer.tc(fn -> Gorilla.compress(gauge, zlib: false, victoria_metrics: false) end)
+
     g_size1 = byte_size(g_bin1)
-    {g_t2, {:ok, g_bin2}} = :timer.tc(fn -> Gorilla.compress(gauge, zlib: false, victoria_metrics: true, is_counter: false, scale_decimals: :auto) end)
+
+    {g_t2, {:ok, g_bin2}} =
+      :timer.tc(fn ->
+        Gorilla.compress(gauge,
+          zlib: false,
+          victoria_metrics: true,
+          is_counter: false,
+          scale_decimals: :auto
+        )
+      end)
+
     g_size2 = byte_size(g_bin2)
     g_orig = byte_size(:erlang.term_to_binary(gauge))
 
     # Counter baseline and VM
-    {c_t1, {:ok, c_bin1}} = :timer.tc(fn -> Gorilla.compress(counter, zlib: false, victoria_metrics: false) end)
+    {c_t1, {:ok, c_bin1}} =
+      :timer.tc(fn -> Gorilla.compress(counter, zlib: false, victoria_metrics: false) end)
+
     c_size1 = byte_size(c_bin1)
-    {c_t2, {:ok, c_bin2}} = :timer.tc(fn -> Gorilla.compress(counter, zlib: false, victoria_metrics: true, is_counter: true, scale_decimals: :auto) end)
+
+    {c_t2, {:ok, c_bin2}} =
+      :timer.tc(fn ->
+        Gorilla.compress(counter,
+          zlib: false,
+          victoria_metrics: true,
+          is_counter: true,
+          scale_decimals: :auto
+        )
+      end)
+
     c_size2 = byte_size(c_bin2)
     c_orig = byte_size(:erlang.term_to_binary(counter))
 
@@ -73,7 +106,9 @@ defmodule Mix.Tasks.GorillaStream.VmBenchmarkJson do
     json = encode_json(summary)
 
     case out_path do
-      nil -> Logger.info(json)
+      nil ->
+        Logger.info(json)
+
       path ->
         case File.write(path, json <> "\n") do
           :ok -> Logger.info("Wrote JSON summary to #{path}")
@@ -129,6 +164,7 @@ defmodule Mix.Tasks.GorillaStream.VmBenchmarkJson do
 
   defp generate_gauge(n) do
     base = 1_700_000_000
+
     for i <- 0..(n - 1) do
       {base + i, 100.0 + 0.01 * i + :math.sin(i / 50) * 0.1}
     end
@@ -137,12 +173,13 @@ defmodule Mix.Tasks.GorillaStream.VmBenchmarkJson do
   defp generate_counter(n) do
     base = 1_700_000_000
     increments = Stream.repeatedly(fn -> :rand.uniform(10) - 1 end) |> Enum.take(n)
+
     {vals, _} =
       Enum.map_reduce(increments, 1_000.0, fn inc, acc ->
         v = acc + inc
         {v, v}
       end)
+
     for {v, i} <- Enum.with_index(vals), do: {base + i, v + 0.01}
   end
 end
-
