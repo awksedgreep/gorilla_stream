@@ -1,5 +1,7 @@
 # GorillaStream
 
+[![CI](https://github.com/awksedgreep/gorilla_stream/actions/workflows/ci.yml/badge.svg)](https://github.com/awksedgreep/gorilla_stream/actions/workflows/ci.yml)
+
 A high-performance, lossless compression library for time series data in Elixir, implementing Facebook's Gorilla compression algorithm.
 
 ## Features
