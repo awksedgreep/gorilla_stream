@@ -3,14 +3,23 @@ defmodule GorillaStream.Compression.Gorilla do
   Implements Gorilla compression for time series data streams.
 
   This module provides compression for streams of {timestamp, number} data using
-  the Gorilla compression algorithm, with optional Zlib compression for additional
-  compression at the final step.
+  the Gorilla compression algorithm, with optional container compression (zlib or zstd)
+  for additional compression at the final step.
 
-  The zlib functionality is available in the Erlang standard library, so we use
-  the built-in zlib module instead of a Hex package.
+  ## Container Compression Options
+
+  The `:compression` option supports:
+
+  - `:none` - No container compression (default)
+  - `:zlib` - Use zlib compression (always available, built into Erlang)
+  - `:zstd` - Use zstd compression (requires ezstd package)
+  - `:auto` - Use zstd if available, fall back to zlib
+
+  For backward compatibility, the `:zlib` boolean option is still supported.
   """
 
   alias GorillaStream.Compression.Gorilla.{Encoder, Decoder}
+  alias GorillaStream.Compression.Container
 
   @doc """
   Compresses a stream of {timestamp, number} data using the Gorilla algorithm.
@@ -27,7 +36,8 @@ defmodule GorillaStream.Compression.Gorilla do
       - `:victoria_metrics` (boolean, default: true)
       - `:is_counter` (boolean, default: false)
       - `:scale_decimals` (:auto | integer, default: :auto)
-      - `:zlib` (boolean, default: false)
+      - `:compression` (`:none` | `:zlib` | `:zstd` | `:auto`, default: :none)
+      - `:zlib` (boolean, default: false) - legacy option, use `:compression` instead
 
   ## Returns
   - `{:ok, compressed_data}`: When compression is successful
@@ -106,7 +116,10 @@ defmodule GorillaStream.Compression.Gorilla do
   - `compressed_data`: The compressed data (binary)
   - Second argument may be either:
     - `zlib_compression?` (boolean) indicating if zlib was used (default: false), OR
-    - keyword options, supporting `:zlib` (boolean, default: false). Other VM options are read from the header automatically by the decoder.
+    - keyword options, supporting:
+      - `:compression` (`:none` | `:zlib` | `:zstd` | `:auto`, default: :none)
+      - `:zlib` (boolean, default: false) - legacy option, use `:compression` instead
+      - Other VM options are read from the header automatically by the decoder.
 
   ## Returns
   - `{:ok, original_stream}`: When decompression is successful
@@ -211,21 +224,13 @@ defmodule GorillaStream.Compression.Gorilla do
     {:ok, data}
   end
 
-  # Minimal container compression selector (zlib only for now)
+  # Container compression using the Container module (supports zlib, zstd, auto)
   defp apply_container_compression(data, opts) when is_list(opts) do
-    if Keyword.get(opts, :zlib, false) do
-      apply_zlib_compression(data, true)
-    else
-      {:ok, data}
-    end
+    Container.compress(data, opts)
   end
 
   defp decompress_with_container(data, opts) when is_list(opts) do
-    if Keyword.get(opts, :zlib, false) do
-      decompress_with_zlib(data, true)
-    else
-      {:ok, data}
-    end
+    Container.decompress(data, opts)
   end
 end
 

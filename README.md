@@ -9,7 +9,7 @@ A high-performance, lossless compression library for time series data in Elixir,
 - **Excellent Compression Ratios**: 2-42x compression depending on data patterns
 - **Production Ready**: Comprehensive error handling and validation
 - **Memory Efficient**: ~117 bytes/point memory usage for large datasets
-- **Zlib Support**: Optional additional compression layer
+- **Container Compression**: Optional zlib or zstd compression layer for additional size reduction
 
 ## Performance
 
@@ -45,7 +45,16 @@ data = [
 # Verify lossless compression
 decompressed == data  # => true
 
-# With optional zlib compression for better ratios
+# With optional container compression for better ratios
+# Options: :none (default), :zlib, :zstd, :auto
+{:ok, compressed} = GorillaStream.compress(data, compression: :zstd)
+{:ok, decompressed} = GorillaStream.decompress(compressed, compression: :zstd)
+
+# Use :auto to automatically select the best available (zstd if installed, else zlib)
+{:ok, compressed} = GorillaStream.compress(data, compression: :auto)
+{:ok, decompressed} = GorillaStream.decompress(compressed, compression: :auto)
+
+# Legacy boolean API still works (zlib compression)
 {:ok, compressed} = GorillaStream.compress(data, true)
 {:ok, decompressed} = GorillaStream.decompress(compressed, true)
 ```
@@ -523,9 +532,64 @@ by adding `gorilla_stream` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-  {:gorilla_stream, "~> 1.3"}
+    {:gorilla_stream, "~> 1.3"}
   ]
 end
+```
+
+### Optional: Zstd Compression
+
+For better compression ratios and faster compression/decompression, you can optionally install the `ezstd` package:
+
+```elixir
+def deps do
+  [
+    {:gorilla_stream, "~> 1.3"},
+    {:ezstd, "~> 1.2"}  # Optional - enables zstd compression
+  ]
+end
+```
+
+Zstd typically provides 1.5-2x better compression than zlib at similar or faster speeds. When installed, you can use `compression: :zstd` or `compression: :auto` to take advantage of it.
+
+To check if zstd is available at runtime:
+
+```elixir
+GorillaStream.zstd_available?()  # => true or false
+```
+
+## Container Compression Options
+
+GorillaStream supports optional container compression on top of Gorilla encoding:
+
+| Option | Description |
+|--------|-------------|
+| `:none` | No container compression (default) |
+| `:zlib` | Use zlib compression (always available, built into Erlang) |
+| `:zstd` | Use zstd compression (requires ezstd package) |
+| `:auto` | Use zstd if available, fall back to zlib |
+
+Example usage:
+
+```elixir
+# No container compression (fastest, default)
+{:ok, compressed} = GorillaStream.compress(data)
+
+# Zlib compression (always available)
+{:ok, compressed} = GorillaStream.compress(data, compression: :zlib)
+
+# Zstd compression (best compression, requires ezstd)
+{:ok, compressed} = GorillaStream.compress(data, compression: :zstd)
+
+# Auto-select best available
+{:ok, compressed} = GorillaStream.compress(data, compression: :auto)
+
+# Combine with other options
+{:ok, compressed} = GorillaStream.compress(data,
+  compression: :zstd,
+  victoria_metrics: true,
+  is_counter: true
+)
 ```
 
 ## Documentation
@@ -593,7 +657,7 @@ The tool provides decision guidelines to help you choose the optimal compression
 
 VictoriaMetrics-style preprocessing is enabled by default. Disable or tune it using options as shown below.
 
-Enable an optional VictoriaMetrics-style preprocessing pipeline to improve Gorilla compression for gauges and counters (no zstd dependency required).
+Enable an optional VictoriaMetrics-style preprocessing pipeline to improve Gorilla compression for gauges and counters. For additional compression, you can optionally enable container compression (zlib or zstd) on top of this.
 
 - Enable during compression with opts:
 

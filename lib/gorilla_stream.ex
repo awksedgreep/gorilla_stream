@@ -39,6 +39,7 @@ defmodule GorillaStream do
   """
 
   alias GorillaStream.Compression.Gorilla
+  alias GorillaStream.Compression.Container
 
   @doc """
   Compresses time series data using the Gorilla algorithm.
@@ -54,7 +55,8 @@ defmodule GorillaStream do
       - `:victoria_metrics` (boolean, default: true)
       - `:is_counter` (boolean, default: false)
       - `:scale_decimals` (:auto | integer, default: :auto)
-      - `:zlib` (boolean, default: false)
+      - `:compression` (`:none` | `:zlib` | `:zstd` | `:auto`, default: :none)
+      - `:zlib` (boolean, default: false) - legacy option, use `:compression` instead
 
   ## Returns
   - `{:ok, compressed_binary}` - Success with compressed data
@@ -86,7 +88,9 @@ defmodule GorillaStream do
   - `compressed_data` - Binary data from compress/2
   - Second argument may be either:
     - `zlib_compression?` (boolean) indicating if zlib was used (default: false), OR
-    - keyword options, supporting `:zlib` (boolean, default: false)
+    - keyword options, supporting:
+      - `:compression` (`:none` | `:zlib` | `:zstd` | `:auto`, default: :none)
+      - `:zlib` (boolean, default: false) - legacy option, use `:compression` instead
 
   ## Returns
   - `{:ok, decompressed_data}` - List of `{timestamp, value}` tuples
@@ -109,6 +113,19 @@ defmodule GorillaStream do
   def decompress(compressed_data, opts) when is_list(opts) do
     Gorilla.decompress(compressed_data, opts)
   end
+
+  @doc """
+  Checks if zstd compression is available.
+
+  Zstd requires the optional `ezstd` package to be installed.
+
+  ## Examples
+
+      iex> GorillaStream.zstd_available?()
+      true  # or false, depending on whether ezstd is installed
+
+  """
+  defdelegate zstd_available?, to: Container
 
   @doc """
   Hello world example function.

@@ -33,8 +33,9 @@ defmodule GorillaStream.Performance.OptimizedBenchmarkTest do
     orig_time = measure.(fn -> GorillaStream.Compression.Gorilla.Encoder.encode(data) end)
     opt_time = measure.(fn -> GorillaStream.Compression.Gorilla.EncoderOptimized.encode(data) end)
 
-    IO.puts("Original encoder time (median of 5): #{orig_time} µs")
-    IO.puts("Optimized encoder time (median of 5): #{opt_time} µs")
+    require Logger
+    Logger.info("Original encoder time (median of 5): #{orig_time} µs")
+    Logger.info("Optimized encoder time (median of 5): #{opt_time} µs")
 
     # The original encoder has been optimized recently, narrowing the gap.
     # Guard against regressions: optimized should not be slower than original by more than 5%.

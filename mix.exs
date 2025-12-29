@@ -4,7 +4,7 @@ defmodule GorillaStream.MixProject do
   def project do
     [
       app: :gorilla_stream,
-      version: "1.3.5",
+      version: "1.3.6",
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -24,7 +24,9 @@ defmodule GorillaStream.MixProject do
   def deps do
     [
       # No zlib dependency needed as it's built into Erlang standard library
-      {:dialyxir, "~> 1.4", only: [:dev], runtime: false}
+      {:dialyxir, "~> 1.4", only: [:dev], runtime: false},
+      # Optional zstd compression - provides better compression than zlib
+      {:ezstd, "~> 1.2", optional: true}
     ]
   end
 

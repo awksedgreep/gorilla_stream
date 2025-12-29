@@ -405,21 +405,6 @@ Logger.info(
     end
   end
 
-  defp generate_realistic_sensor_data(count) do
-    base_timestamp = 1_609_459_200
-    # Deterministic
-    :rand.seed(:exsss, {1, 2, 3})
-
-    for i <- 0..(count - 1) do
-      # Simulate temperature sensor: base + daily cycle + noise
-      # 24-hour cycle
-      daily_cycle = 5.0 * :math.sin(i * 2 * :math.pi() / 1440)
-      noise = (:rand.uniform() - 0.5) * 0.5
-      temperature = 20.0 + daily_cycle + noise
-      # Every minute
-      {base_timestamp + i * 60, temperature}
-    end
-  end
 
   defp generate_alternating_pattern(count) do
     base_timestamp = 1_609_459_200

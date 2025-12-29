@@ -1,5 +1,19 @@
 ExUnit.start(max_cases: System.schedulers_online() * 2)
 
-# Reduce test log noise; only warnings and errors will be emitted during tests
+# Configure test logging; default to :warning, allow override via LOG_LEVEL env var
 require Logger
-Logger.configure(level: :warning)
+case System.get_env("LOG_LEVEL") do
+  nil -> Logger.configure(level: :warning)
+  level_str ->
+    level =
+      case String.downcase(level_str) do
+        "debug" -> :debug
+        "info" -> :info
+        "warn" -> :warning
+        "warning" -> :warning
+        "error" -> :error
+        _ -> :warning
+      end
+
+    Logger.configure(level: level)
+end
