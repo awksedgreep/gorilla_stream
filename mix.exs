@@ -9,7 +9,12 @@ defmodule GorillaStream.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       dialyzer: dialyzer(),
-      aliases: aliases()
+      aliases: aliases(),
+      description:
+        "A high-performance, lossless compression library for time series data implementing Facebook's Gorilla compression algorithm.",
+      package: package(),
+      source_url: "https://github.com/awksedgreep/gorilla_stream",
+      docs: docs()
     ]
   end
 
@@ -25,8 +30,28 @@ defmodule GorillaStream.MixProject do
     [
       # No zlib dependency needed as it's built into Erlang standard library
       {:dialyxir, "~> 1.4", only: [:dev], runtime: false},
+      {:ex_doc, "~> 0.35", only: :dev, runtime: false},
       # Optional zstd compression - provides better compression than zlib
       {:ezstd, "~> 1.2", optional: true}
+    ]
+  end
+
+  defp package do
+    [
+      licenses: ["MIT"],
+      links: %{"GitHub" => "https://github.com/awksedgreep/gorilla_stream"},
+      files: ~w(lib .formatter.exs mix.exs README.md LICENSE)
+    ]
+  end
+
+  defp docs do
+    [
+      main: "GorillaStream",
+      extras: [
+        "docs/user_guide.md",
+        "docs/performance_guide.md",
+        "docs/troubleshooting.md"
+      ]
     ]
   end
 
