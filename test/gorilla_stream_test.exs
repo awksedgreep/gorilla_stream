@@ -2,10 +2,6 @@ defmodule GorillaStreamTest do
   use ExUnit.Case, async: true
   doctest GorillaStream
 
-  test "greets the world" do
-    assert GorillaStream.hello() == :world
-  end
-
   # Test that the compression library works correctly
   test "Gorilla compression library works correctly" do
     # Test data for compression
