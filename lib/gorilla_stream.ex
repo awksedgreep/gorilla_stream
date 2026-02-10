@@ -128,17 +128,4 @@ defmodule GorillaStream do
 
   """
   defdelegate zstd_available?, to: Container
-
-  @doc """
-  Hello world example function.
-
-  ## Examples
-
-      iex> GorillaStream.hello()
-      :world
-
-  """
-  def hello do
-    :world
-  end
 end
