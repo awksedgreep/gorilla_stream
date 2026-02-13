@@ -76,6 +76,7 @@ defmodule GorillaStream.Compression.Container do
   - `data` - Binary data to compress
   - `opts` - Keyword list of options:
     - `:compression` - Compression type (`:none`, `:zlib`, `:zstd`, `:auto`)
+    - `:compression_level` - Zstd compression level 1-22 (default: ezstd default)
     - `:zlib` - Legacy boolean option for zlib compression
 
   ## Returns
@@ -86,7 +87,8 @@ defmodule GorillaStream.Compression.Container do
   @spec compress(binary(), keyword()) :: {:ok, binary()} | {:error, String.t()}
   def compress(data, opts \\ []) when is_binary(data) do
     compression_type = resolve_compression_type(opts)
-    do_compress(data, compression_type)
+    level = Keyword.get(opts, :compression_level)
+    do_compress(data, compression_type, level)
   end
 
   @doc """
@@ -145,9 +147,9 @@ defmodule GorillaStream.Compression.Container do
     end
   end
 
-  defp do_compress(data, :none), do: {:ok, data}
+  defp do_compress(data, :none, _level), do: {:ok, data}
 
-  defp do_compress(data, :zlib) do
+  defp do_compress(data, :zlib, _level) do
     try do
       compressed = :zlib.compress(data)
       {:ok, compressed}
@@ -157,16 +159,19 @@ defmodule GorillaStream.Compression.Container do
     end
   end
 
-  defp do_compress(data, :zstd) do
+  defp do_compress(data, :zstd, level) do
     if zstd_available?() do
       # Handle empty binary specially - zstd doesn't handle it well
       if data == <<>> do
         {:ok, <<>>}
       else
         try do
-          case :ezstd.compress(data) do
+          compressed =
+            if level, do: :ezstd.compress(data, level), else: :ezstd.compress(data)
+
+          case compressed do
             {:error, reason} -> {:error, "Zstd compression failed: #{reason}"}
-            compressed when is_binary(compressed) -> {:ok, compressed}
+            bin when is_binary(bin) -> {:ok, bin}
           end
         rescue
           error ->
@@ -179,11 +184,11 @@ defmodule GorillaStream.Compression.Container do
     end
   end
 
-  defp do_compress(data, :auto) do
+  defp do_compress(data, :auto, level) do
     if zstd_available?() do
-      do_compress(data, :zstd)
+      do_compress(data, :zstd, level)
     else
-      do_compress(data, :zlib)
+      do_compress(data, :zlib, level)
     end
   end
 

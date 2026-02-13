@@ -56,6 +56,7 @@ defmodule GorillaStream do
       - `:is_counter` (boolean, default: false)
       - `:scale_decimals` (:auto | integer, default: :auto)
       - `:compression` (`:none` | `:zlib` | `:zstd` | `:auto`, default: :none)
+      - `:compression_level` (integer 1-22, zstd only, default: ezstd default)
       - `:zlib` (boolean, default: false) - legacy option, use `:compression` instead
 
   ## Returns
@@ -91,6 +92,7 @@ defmodule GorillaStream do
     - `zlib_compression?` (boolean) indicating if zlib was used (default: false), OR
     - keyword options, supporting:
       - `:compression` (`:none` | `:zlib` | `:zstd` | `:auto`, default: :none)
+      - `:compression_level` (integer 1-22, zstd only, default: ezstd default)
       - `:zlib` (boolean, default: false) - legacy option, use `:compression` instead
 
   ## Returns
