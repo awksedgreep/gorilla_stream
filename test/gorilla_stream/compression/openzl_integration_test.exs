@@ -102,7 +102,10 @@ defmodule GorillaStream.Compression.OpenzlIntegrationTest do
     @tag :openzl
     test "compress with level" do
       data = :crypto.strong_rand_bytes(1024)
-      assert {:ok, compressed} = Container.compress(data, compression: :openzl, compression_level: 10)
+
+      assert {:ok, compressed} =
+               Container.compress(data, compression: :openzl, compression_level: 10)
+
       assert is_binary(compressed)
       assert {:ok, ^data} = Container.decompress(compressed, compression: :openzl)
     end

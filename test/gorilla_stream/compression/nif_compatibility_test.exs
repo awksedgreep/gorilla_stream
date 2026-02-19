@@ -179,19 +179,15 @@ defmodule GorillaStream.Compression.NifCompatibilityTest do
       {:ok, elixir_encoded} = Encoder.encode_elixir(data, [])
 
       # Parse both headers to compare fields (except creation_time)
-      <<nif_magic::64, nif_ver::16, nif_hdr_size::16, nif_count::32,
-        nif_comp_size::32, nif_orig_size::32, nif_crc::32,
-        nif_first_ts::64, nif_first_delta::32-signed,
-        nif_first_val::64, nif_ts_bits::32, nif_val_bits::32,
-        nif_total_bits::32, _nif_ratio::64,
+      <<nif_magic::64, nif_ver::16, nif_hdr_size::16, nif_count::32, nif_comp_size::32,
+        nif_orig_size::32, nif_crc::32, nif_first_ts::64, nif_first_delta::32-signed,
+        nif_first_val::64, nif_ts_bits::32, nif_val_bits::32, nif_total_bits::32, _nif_ratio::64,
         _nif_creation::64, nif_flags::32, _::binary>> = nif_encoded
 
-      <<elix_magic::64, elix_ver::16, elix_hdr_size::16, elix_count::32,
-        elix_comp_size::32, elix_orig_size::32, elix_crc::32,
-        elix_first_ts::64, elix_first_delta::32-signed,
-        elix_first_val::64, elix_ts_bits::32, elix_val_bits::32,
-        elix_total_bits::32, _elix_ratio::64,
-        _elix_creation::64, elix_flags::32, _::binary>> = elixir_encoded
+      <<elix_magic::64, elix_ver::16, elix_hdr_size::16, elix_count::32, elix_comp_size::32,
+        elix_orig_size::32, elix_crc::32, elix_first_ts::64, elix_first_delta::32-signed,
+        elix_first_val::64, elix_ts_bits::32, elix_val_bits::32, elix_total_bits::32,
+        _elix_ratio::64, _elix_creation::64, elix_flags::32, _::binary>> = elixir_encoded
 
       assert nif_magic == elix_magic
       assert nif_ver == elix_ver
