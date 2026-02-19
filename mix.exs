@@ -4,9 +4,11 @@ defmodule GorillaStream.MixProject do
   def project do
     [
       app: :gorilla_stream,
-      version: "1.3.12",
+      version: "2.0.0",
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
+      compilers: [:elixir_make] ++ Mix.compilers(),
+      make_env: fn -> %{"FINE_INCLUDE_DIR" => Fine.include_dir()} end,
       deps: deps(),
       dialyzer: dialyzer(),
       aliases: aliases(),
@@ -32,7 +34,12 @@ defmodule GorillaStream.MixProject do
       {:dialyxir, "~> 1.4", only: [:dev], runtime: false},
       {:ex_doc, "~> 0.35", only: :dev, runtime: false},
       # Optional zstd compression - provides better compression than zlib
-      {:ezstd, "~> 1.2", optional: true}
+      {:ezstd, "~> 1.2", optional: true},
+      # Optional OpenZL compression - format-aware compression extending zstd
+      {:ex_openzl, "~> 0.4", optional: true},
+      # NIF build support
+      {:fine, "~> 0.1.4"},
+      {:elixir_make, "~> 0.9", runtime: false}
     ]
   end
 
@@ -40,7 +47,7 @@ defmodule GorillaStream.MixProject do
     [
       licenses: ["MIT"],
       links: %{"GitHub" => "https://github.com/awksedgreep/gorilla_stream"},
-      files: ~w(lib .formatter.exs mix.exs README.md LICENSE)
+      files: ~w(lib c_src Makefile .formatter.exs mix.exs README.md LICENSE)
     ]
   end
 

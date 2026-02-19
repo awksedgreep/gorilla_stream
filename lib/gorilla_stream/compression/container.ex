@@ -2,7 +2,7 @@ defmodule GorillaStream.Compression.Container do
   @moduledoc """
   Container compression utilities for GorillaStream.
 
-  Provides a unified interface for applying secondary compression (zlib or zstd)
+  Provides a unified interface for applying secondary compression (zlib, zstd, or openzl)
   on top of Gorilla-compressed data. Zstd is preferred when available as it
   typically achieves better compression ratios and faster speeds than zlib.
 
@@ -13,6 +13,7 @@ defmodule GorillaStream.Compression.Container do
   - `:none` - No container compression (default)
   - `:zlib` - Use zlib compression (always available, built into Erlang)
   - `:zstd` - Use zstd compression (requires ezstd package)
+  - `:openzl` - Use OpenZL compression (requires ex_openzl package)
   - `:auto` - Use zstd if available, fall back to zlib
 
   ## Examples
@@ -25,6 +26,9 @@ defmodule GorillaStream.Compression.Container do
 
       # Use zstd (requires ezstd)
       {:ok, data} = Container.compress(binary, compression: :zstd)
+
+      # Use OpenZL (requires ex_openzl)
+      {:ok, data} = Container.compress(binary, compression: :openzl)
 
       # Auto-select best available
       {:ok, data} = Container.compress(binary, compression: :auto)
@@ -53,7 +57,7 @@ defmodule GorillaStream.Compression.Container do
   # Default buffer size for streaming contexts (64KB)
   @default_stream_buffer_size 65_536
 
-  @type compression_type :: :none | :zlib | :zstd | :auto
+  @type compression_type :: :none | :zlib | :zstd | :openzl | :auto
 
   @doc """
   Checks if the ezstd library is available at runtime.
@@ -66,6 +70,19 @@ defmodule GorillaStream.Compression.Container do
   @spec zstd_available?() :: boolean()
   def zstd_available? do
     Code.ensure_loaded?(:ezstd)
+  end
+
+  @doc """
+  Checks if the ex_openzl library is available at runtime.
+
+  ## Examples
+
+      iex> GorillaStream.Compression.Container.openzl_available?()
+      true  # or false, depending on whether ex_openzl is installed
+  """
+  @spec openzl_available?() :: boolean()
+  def openzl_available? do
+    Code.ensure_loaded?(ExOpenzl)
   end
 
   @doc """
@@ -184,6 +201,37 @@ defmodule GorillaStream.Compression.Container do
     end
   end
 
+  defp do_compress(data, :openzl, level) do
+    if openzl_available?() do
+      if data == <<>> do
+        {:ok, <<>>}
+      else
+        try do
+          result =
+            if level do
+              with {:ok, cctx} <- ExOpenzl.create_compression_context(),
+                   :ok <- ExOpenzl.set_compression_level(cctx, level) do
+                ExOpenzl.compress(cctx, data)
+              end
+            else
+              ExOpenzl.compress(data)
+            end
+
+          case result do
+            {:ok, compressed} -> {:ok, compressed}
+            {:error, reason} -> {:error, "OpenZL compression failed: #{inspect(reason)}"}
+          end
+        rescue
+          error ->
+            {:error, "OpenZL compression failed: #{inspect(error)}"}
+        end
+      end
+    else
+      {:error,
+       "OpenZL compression requested but ex_openzl is not installed. Add {:ex_openzl, \"~> 0.4\"} to your dependencies."}
+    end
+  end
+
   defp do_compress(data, :auto, level) do
     if zstd_available?() do
       do_compress(data, :zstd, level)
@@ -226,6 +274,27 @@ defmodule GorillaStream.Compression.Container do
     end
   end
 
+  defp do_decompress(data, :openzl) do
+    if openzl_available?() do
+      if data == <<>> do
+        {:ok, <<>>}
+      else
+        try do
+          case ExOpenzl.decompress(data) do
+            {:ok, decompressed} -> {:ok, decompressed}
+            {:error, reason} -> {:error, "OpenZL decompression failed: #{inspect(reason)}"}
+          end
+        rescue
+          error ->
+            {:error, "OpenZL decompression failed: #{inspect(error)}"}
+        end
+      end
+    else
+      {:error,
+       "OpenZL decompression requested but ex_openzl is not installed. Add {:ex_openzl, \"~> 0.4\"} to your dependencies."}
+    end
+  end
+
   defp do_decompress(data, :auto) do
     if zstd_available?() do
       do_decompress(data, :zstd)
@@ -263,6 +332,10 @@ defmodule GorillaStream.Compression.Container do
   @spec create_stream_context(:zstd | :zlib, :compress | :decompress, keyword()) ::
           {:ok, term()} | {:error, String.t()}
   def create_stream_context(type, mode, opts \\ [])
+
+  def create_stream_context(:openzl, _mode, _opts) do
+    {:error, "OpenZL does not support streaming compression. Use one-shot compression instead."}
+  end
 
   def create_stream_context(:zstd, :compress, opts) do
     if zstd_available?() do
