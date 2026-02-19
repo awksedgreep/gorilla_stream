@@ -20,6 +20,15 @@ defmodule GorillaStream.Compression.Gorilla.Encoder do
     Metadata
   }
 
+  alias GorillaStream.Compression.Gorilla.NIF
+
+  @doc """
+  Returns true if the native NIF encoder is available.
+  """
+  def nif_available? do
+    Code.ensure_loaded?(NIF) and function_exported?(NIF, :nif_gorilla_encode, 2)
+  end
+
   @doc """
   Encodes a stream of {timestamp, float} tuples using the Gorilla compression algorithm.
 
@@ -38,53 +47,22 @@ defmodule GorillaStream.Compression.Gorilla.Encoder do
   def encode([], _opts), do: {:ok, <<>>}
 
   def encode(data, opts) when is_list(data) and length(data) > 0 do
-    # Fast path validation - check first few items to catch common errors early
     case validate_input_data_fast(data) do
       :ok ->
-        try do
-          # Optimized path - minimal validation for speed
-          {timestamps, values} = separate_timestamps_and_values(data)
+        if nif_available?() do
+          try do
+            opts_map =
+              %{}
+              |> maybe_put(:victoria_metrics, Keyword.get(opts, :victoria_metrics))
+              |> maybe_put(:is_counter, Keyword.get(opts, :is_counter))
+              |> maybe_put(:scale_decimals, Keyword.get(opts, :scale_decimals))
 
-          victoria_metrics? = Keyword.get(opts, :victoria_metrics, false)
-          is_counter? = Keyword.get(opts, :is_counter, false)
-          scale_opt = Keyword.get(opts, :scale_decimals, :auto)
-
-          {pre_values, vm_meta} =
-            if victoria_metrics? do
-              # Apply VM-style preprocessing
-              values1 =
-                if is_counter?,
-                  do: GorillaStream.Compression.Enhancements.delta_encode_counter(values),
-                  else: values
-
-              {scaled, n} =
-                GorillaStream.Compression.Enhancements.scale_floats_to_ints(values1, scale_opt)
-
-              {scaled, %{victoria_metrics: true, is_counter: is_counter?, scale_decimals: n}}
-            else
-              {values, %{victoria_metrics: false, is_counter: false, scale_decimals: 0}}
-            end
-
-          # Direct encoding without error handling wrapper functions
-          {ts_bits, ts_meta} = DeltaEncoding.encode(timestamps)
-          {val_bits, val_meta} = ValueCompression.compress(pre_values)
-          {packed_binary, pack_meta} = BitPacking.pack({ts_bits, ts_meta}, {val_bits, val_meta})
-
-          # Thread vm_meta forward for header decisions
-          meta_with_vm = Map.put(pack_meta, :vm_meta, vm_meta)
-
-          final_data = Metadata.add_metadata(packed_binary, meta_with_vm)
-          {:ok, final_data}
-        rescue
-          error in RuntimeError ->
-            if String.contains?(error.message, "Invalid data format") do
-              {:error, "Invalid data format: all items must be {timestamp, float} tuples"}
-            else
-              {:error, "Encoding failed: #{inspect(error)}"}
-            end
-
-          error ->
-            {:error, "Encoding failed: #{inspect(error)}"}
+            NIF.nif_gorilla_encode(data, opts_map)
+          rescue
+            _ -> encode_elixir(data, opts)
+          end
+        else
+          encode_elixir(data, opts)
         end
 
       {:error, reason} ->
@@ -95,6 +73,55 @@ defmodule GorillaStream.Compression.Gorilla.Encoder do
   # Fallback clause for invalid input types
   def encode(_, _opts),
     do: {:error, "Invalid input data - expected list of {timestamp, float} tuples"}
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
+  @doc """
+  Pure-Elixir encode, used as fallback when NIF is unavailable.
+  """
+  def encode_elixir(data, opts) do
+    try do
+      {timestamps, values} = separate_timestamps_and_values(data)
+
+      victoria_metrics? = Keyword.get(opts, :victoria_metrics, false)
+      is_counter? = Keyword.get(opts, :is_counter, false)
+      scale_opt = Keyword.get(opts, :scale_decimals, :auto)
+
+      {pre_values, vm_meta} =
+        if victoria_metrics? do
+          values1 =
+            if is_counter?,
+              do: GorillaStream.Compression.Enhancements.delta_encode_counter(values),
+              else: values
+
+          {scaled, n} =
+            GorillaStream.Compression.Enhancements.scale_floats_to_ints(values1, scale_opt)
+
+          {scaled, %{victoria_metrics: true, is_counter: is_counter?, scale_decimals: n}}
+        else
+          {values, %{victoria_metrics: false, is_counter: false, scale_decimals: 0}}
+        end
+
+      {ts_bits, ts_meta} = DeltaEncoding.encode(timestamps)
+      {val_bits, val_meta} = ValueCompression.compress(pre_values)
+      {packed_binary, pack_meta} = BitPacking.pack({ts_bits, ts_meta}, {val_bits, val_meta})
+
+      meta_with_vm = Map.put(pack_meta, :vm_meta, vm_meta)
+      final_data = Metadata.add_metadata(packed_binary, meta_with_vm)
+      {:ok, final_data}
+    rescue
+      error in RuntimeError ->
+        if String.contains?(error.message, "Invalid data format") do
+          {:error, "Invalid data format: all items must be {timestamp, float} tuples"}
+        else
+          {:error, "Encoding failed: #{inspect(error)}"}
+        end
+
+      error ->
+        {:error, "Encoding failed: #{inspect(error)}"}
+    end
+  end
 
   # Fast validation that checks input format without full enumeration
   defp validate_input_data_fast(data) do

@@ -20,6 +20,15 @@ defmodule GorillaStream.Compression.Gorilla.Decoder do
     ValueDecompression
   }
 
+  alias GorillaStream.Compression.Gorilla.NIF
+
+  @doc """
+  Returns true if the native NIF decoder is available.
+  """
+  def nif_available? do
+    Code.ensure_loaded?(NIF) and function_exported?(NIF, :nif_gorilla_decode, 1)
+  end
+
   @doc """
   Decodes compressed binary data back into a stream of {timestamp, float} tuples.
 
@@ -33,8 +42,26 @@ defmodule GorillaStream.Compression.Gorilla.Decoder do
   def decode(<<>>), do: {:ok, []}
 
   def decode(encoded_data) when is_binary(encoded_data) do
+    if nif_available?() do
+      try do
+        NIF.nif_gorilla_decode(encoded_data)
+      rescue
+        _ -> decode_elixir(encoded_data)
+      end
+    else
+      decode_elixir(encoded_data)
+    end
+  end
+
+  def decode(_), do: {:error, "Invalid input data"}
+
+  @doc """
+  Pure-Elixir decode, used as fallback when NIF is unavailable.
+  """
+  def decode_elixir(<<>>), do: {:ok, []}
+
+  def decode_elixir(encoded_data) when is_binary(encoded_data) do
     try do
-      # Pipeline: metadata -> unpack -> decode timestamps -> decode values -> optional VM post -> combine
       with {:ok, extracted_metadata, remaining_data} <- extract_metadata(encoded_data),
            {:ok, timestamp_bits, value_bits, unpack_metadata} <- unpack_data(remaining_data),
            {:ok, timestamps} <- decode_timestamps(timestamp_bits, unpack_metadata),
@@ -48,8 +75,6 @@ defmodule GorillaStream.Compression.Gorilla.Decoder do
         {:error, "Decoding failed: #{inspect(error)}"}
     end
   end
-
-  def decode(_), do: {:error, "Invalid input data"}
 
   # Extract metadata from encoded data
   defp extract_metadata(encoded_data) do

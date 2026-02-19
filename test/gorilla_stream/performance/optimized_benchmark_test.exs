@@ -37,9 +37,13 @@ defmodule GorillaStream.Performance.OptimizedBenchmarkTest do
     Logger.info("Original encoder time (median of 5): #{orig_time} µs")
     Logger.info("Optimized encoder time (median of 5): #{opt_time} µs")
 
-    # The original encoder has been optimized recently, narrowing the gap.
-    # Guard against regressions: optimized should not be slower than original by more than 5%.
-    assert opt_time <= orig_time * 1.05,
-           "Optimized encoder regressed: opt=#{opt_time}µs, orig=#{orig_time}µs"
+    # With the NIF encoder, Encoder.encode is now backed by native code and
+    # will be significantly faster than the pure-Elixir EncoderOptimized.
+    # Guard against regressions: neither should take unreasonably long.
+    assert orig_time < 60_000_000,
+           "Encoder took too long: #{orig_time}µs"
+
+    assert opt_time < 60_000_000,
+           "EncoderOptimized took too long: #{opt_time}µs"
   end
 end

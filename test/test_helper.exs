@@ -1,4 +1,7 @@
-ExUnit.start(max_cases: System.schedulers_online() * 2)
+ExUnit.start(
+  max_cases: System.schedulers_online() * 2,
+  exclude: unless(Code.ensure_loaded?(ExOpenzl), do: [:openzl], else: [])
+)
 
 # Configure test logging; default to :warning, allow override via LOG_LEVEL env var
 require Logger
