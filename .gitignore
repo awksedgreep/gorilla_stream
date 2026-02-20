@@ -44,3 +44,6 @@ Thumbs.db
 # Local environment files
 .env
 .env.local
+
+# CodeQL detection symlink (created by the codeql_checker tool)
+_codeql_detected_source_root
