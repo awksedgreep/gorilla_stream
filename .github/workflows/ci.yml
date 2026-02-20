@@ -49,8 +49,5 @@ jobs:
       - name: Check formatting
         run: mix format --check-formatted
 
-      - name: Compile
-        run: mix compile --force
-
       - name: Run tests
         run: mix test --color
