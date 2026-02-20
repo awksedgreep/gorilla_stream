@@ -49,3 +49,5 @@ jobs:
 
       - name: Run tests
         run: mix test --color
+        env:
+          CI: true

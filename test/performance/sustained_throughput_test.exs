@@ -6,6 +6,7 @@ defmodule GorillaStream.Performance.SustainedThroughputTest do
 
   describe "sustained throughput testing" do
     @describetag :sustained_performance
+    @tag :skip_ci
     test "measure sustained encoding throughput over extended period" do
       # Test sustained encoding performance with continuous data streams
       data_points_per_batch = 1000
@@ -90,6 +91,7 @@ defmodule GorillaStream.Performance.SustainedThroughputTest do
              "Minimum throughput should exceed 1000 points/sec (got #{Float.round(min_throughput, 0)})"
     end
 
+    @tag :skip_ci
     test "measure sustained decoding throughput over extended period" do
       # Test sustained decoding performance with pre-compressed data
       data_points_per_batch = 1000

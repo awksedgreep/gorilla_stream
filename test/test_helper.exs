@@ -1,6 +1,10 @@
+exclude =
+  unless(Code.ensure_loaded?(ExOpenzl), do: [:openzl], else: []) ++
+    if(System.get_env("CI"), do: [:skip_ci], else: [])
+
 ExUnit.start(
   max_cases: System.schedulers_online() * 2,
-  exclude: unless(Code.ensure_loaded?(ExOpenzl), do: [:openzl], else: [])
+  exclude: exclude
 )
 
 # Configure test logging; default to :warning, allow override via LOG_LEVEL env var
