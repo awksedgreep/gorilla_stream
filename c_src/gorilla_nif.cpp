@@ -10,6 +10,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <mutex>
 #include <string>
 #include <variant>
 #include <vector>
@@ -19,10 +20,9 @@
 // ---------------------------------------------------------------------------
 
 static uint32_t crc32_table[256];
-static bool crc32_table_init = false;
+static std::once_flag crc32_init_flag;
 
-static void init_crc32_table() {
-    if (crc32_table_init) return;
+static void do_init_crc32_table() {
     for (uint32_t i = 0; i < 256; i++) {
         uint32_t c = i;
         for (int j = 0; j < 8; j++) {
@@ -30,7 +30,10 @@ static void init_crc32_table() {
         }
         crc32_table[i] = c;
     }
-    crc32_table_init = true;
+}
+
+static void init_crc32_table() {
+    std::call_once(crc32_init_flag, do_init_crc32_table);
 }
 
 static uint32_t crc32(const uint8_t *data, size_t len) {
@@ -46,17 +49,41 @@ static uint32_t crc32(const uint8_t *data, size_t len) {
 // Byte-order helpers
 // ---------------------------------------------------------------------------
 
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+  #define IS_BIG_ENDIAN 1
+#else
+  #define IS_BIG_ENDIAN 0
+#endif
+
+static inline uint64_t byte_swap_64(uint64_t v) {
+    return ((v & 0x00000000000000FFULL) << 56) |
+           ((v & 0x000000000000FF00ULL) << 40) |
+           ((v & 0x0000000000FF0000ULL) << 24) |
+           ((v & 0x00000000FF000000ULL) << 8)  |
+           ((v & 0x000000FF00000000ULL) >> 8)  |
+           ((v & 0x0000FF0000000000ULL) >> 24) |
+           ((v & 0x00FF000000000000ULL) >> 40) |
+           ((v & 0xFF00000000000000ULL) >> 56);
+}
+
 // Convert double to its 64-bit IEEE 754 integer representation.
-// The BitWriter writes MSB-first, matching Elixir's <<value::float-64>>,
-// so no byte-swap is needed — just extract the raw bit pattern.
+// The BitWriter writes MSB-first, matching Elixir's <<value::float-64>>.
+// On big-endian architectures we byte-swap so the XOR bit layout matches
+// the little-endian convention used by the Elixir encoder.
 
 static inline uint64_t float_to_bits(double v) {
     uint64_t bits;
     memcpy(&bits, &v, sizeof(bits));
+#if IS_BIG_ENDIAN
+    bits = byte_swap_64(bits);
+#endif
     return bits;
 }
 
 static inline double bits_to_float(uint64_t bits) {
+#if IS_BIG_ENDIAN
+    bits = byte_swap_64(bits);
+#endif
     double v;
     memcpy(&v, &bits, sizeof(v));
     return v;
@@ -273,12 +300,42 @@ static inline uint64_t bitmask(int n) {
 
 static inline int count_leading_zeros_64(uint64_t v) {
     if (v == 0) return 64;
+#if defined(__GNUC__) || defined(__clang__)
     return __builtin_clzll(v);
+#elif defined(_MSC_VER)
+    unsigned long idx;
+    _BitScanReverse64(&idx, v);
+    return 63 - (int)idx;
+#else
+    int n = 0;
+    if (v <= 0x00000000FFFFFFFFULL) { n += 32; v <<= 32; }
+    if (v <= 0x0000FFFFFFFFFFFFULL) { n += 16; v <<= 16; }
+    if (v <= 0x00FFFFFFFFFFFFFFULL) { n += 8;  v <<= 8;  }
+    if (v <= 0x0FFFFFFFFFFFFFFFULL) { n += 4;  v <<= 4;  }
+    if (v <= 0x3FFFFFFFFFFFFFFFULL) { n += 2;  v <<= 2;  }
+    if (v <= 0x7FFFFFFFFFFFFFFFULL) { n += 1; }
+    return n;
+#endif
 }
 
 static inline int count_trailing_zeros_64(uint64_t v) {
     if (v == 0) return 64;
+#if defined(__GNUC__) || defined(__clang__)
     return __builtin_ctzll(v);
+#elif defined(_MSC_VER)
+    unsigned long idx;
+    _BitScanForward64(&idx, v);
+    return (int)idx;
+#else
+    int n = 0;
+    if ((v & 0x00000000FFFFFFFFULL) == 0) { n += 32; v >>= 32; }
+    if ((v & 0x000000000000FFFFULL) == 0) { n += 16; v >>= 16; }
+    if ((v & 0x00000000000000FFULL) == 0) { n += 8;  v >>= 8;  }
+    if ((v & 0x000000000000000FULL) == 0) { n += 4;  v >>= 4;  }
+    if ((v & 0x0000000000000003ULL) == 0) { n += 2;  v >>= 2;  }
+    if ((v & 0x0000000000000001ULL) == 0) { n += 1; }
+    return n;
+#endif
 }
 
 struct ValueEncodeResult {

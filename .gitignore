@@ -44,3 +44,6 @@ Thumbs.db
 # Local environment files
 .env
 .env.local
+
+# NIF build artifacts
+c_src/*.o

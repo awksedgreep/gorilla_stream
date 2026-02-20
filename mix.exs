@@ -8,7 +8,19 @@ defmodule GorillaStream.MixProject do
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       compilers: [:elixir_make] ++ Mix.compilers(),
-      make_env: fn -> %{"FINE_INCLUDE_DIR" => Fine.include_dir()} end,
+      make_env: fn ->
+        erts_include_dir =
+          Path.join([
+            to_string(:code.root_dir()),
+            "erts-#{:erlang.system_info(:version)}",
+            "include"
+          ])
+
+        %{
+          "FINE_INCLUDE_DIR" => Fine.include_dir(),
+          "ERTS_INCLUDE_DIR" => erts_include_dir
+        }
+      end,
       deps: deps(),
       dialyzer: dialyzer(),
       aliases: aliases(),
