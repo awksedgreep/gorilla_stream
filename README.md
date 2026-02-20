@@ -38,6 +38,27 @@ def deps do
 end
 ```
 
+## Build Requirements
+
+GorillaStream includes a C++ NIF that is compiled from source when no precompiled
+binary is available for your platform.  You need:
+
+- **Erlang/OTP** (≥ 24) with ERTS headers
+- **Elixir** (≥ 1.14)
+- **A C++17-capable compiler** — GCC ≥ 7 or Clang ≥ 5
+
+### Installing the compiler on common distributions
+
+| Distribution | Command |
+|---|---|
+| Debian / Ubuntu | `apt-get install build-essential` |
+| Fedora / RHEL / CentOS | `dnf install gcc-c++ make` |
+| Alpine Linux | `apk add build-base` |
+| macOS (Homebrew) | Xcode Command Line Tools (`xcode-select --install`) |
+
+If your environment lacks a C++ compiler the build will fail with a clear error
+message pointing to this section.
+
 ## Quick Start
 
 ```elixir

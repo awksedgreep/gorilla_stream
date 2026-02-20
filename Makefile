@@ -26,9 +26,16 @@ endif
 NIF_SRC = c_src/gorilla_nif.cpp
 NIF_OBJ = c_src/gorilla_nif.o
 
-.PHONY: all clean
+.PHONY: all clean check-compiler
 
-all: $(PRIV_DIR) $(NIF_SO)
+# Verify that the C++ compiler exists and supports C++17 before attempting to build.
+check-compiler:
+	@command -v $(CXX) >/dev/null 2>&1 || \
+		{ echo "ERROR: C++ compiler '$(CXX)' not found. See README.md for platform-specific installation instructions."; exit 1; }
+	@$(CXX) -std=c++17 -x c++ - -fsyntax-only </dev/null 2>/dev/null || \
+		{ echo "ERROR: '$(CXX)' does not support C++17. Please use GCC >= 7 or Clang >= 5. See README.md for details."; exit 1; }
+
+all: check-compiler $(PRIV_DIR) $(NIF_SO)
 
 $(PRIV_DIR):
 	mkdir -p $(PRIV_DIR)
