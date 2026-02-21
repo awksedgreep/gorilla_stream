@@ -304,6 +304,62 @@ defmodule GorillaStream.Compression.Container do
   end
 
   # =============================================================================
+  # Dictionary Compression API
+  # =============================================================================
+
+  @doc """
+  Compresses data using a pre-trained zstd dictionary.
+
+  The `cdict` must be a reference created via `:ezstd.create_cdict/2`.
+
+  ## Returns
+
+  - `{:ok, compressed_data}` on success
+  - `{:error, reason}` on failure
+  """
+  @spec compress_with_dict(binary(), reference()) :: {:ok, binary()} | {:error, String.t()}
+  def compress_with_dict(data, cdict) when is_binary(data) and is_reference(cdict) do
+    if data == <<>> do
+      {:ok, <<>>}
+    else
+      try do
+        case :ezstd.compress_using_cdict(data, cdict) do
+          bin when is_binary(bin) -> {:ok, bin}
+          {:error, reason} -> {:error, "Dict compression failed: #{inspect(reason)}"}
+        end
+      rescue
+        e -> {:error, "Dict compression failed: #{inspect(e)}"}
+      end
+    end
+  end
+
+  @doc """
+  Decompresses data using a pre-trained zstd dictionary.
+
+  The `ddict` must be a reference created via `:ezstd.create_ddict/1`.
+
+  ## Returns
+
+  - `{:ok, decompressed_data}` on success
+  - `{:error, reason}` on failure
+  """
+  @spec decompress_with_dict(binary(), reference()) :: {:ok, binary()} | {:error, String.t()}
+  def decompress_with_dict(data, ddict) when is_binary(data) and is_reference(ddict) do
+    if data == <<>> do
+      {:ok, <<>>}
+    else
+      try do
+        case :ezstd.decompress_using_ddict(data, ddict) do
+          bin when is_binary(bin) -> {:ok, bin}
+          {:error, reason} -> {:error, "Dict decompression failed: #{inspect(reason)}"}
+        end
+      rescue
+        e -> {:error, "Dict decompression failed: #{inspect(e)}"}
+      end
+    end
+  end
+
+  # =============================================================================
   # Streaming Compression API
   # =============================================================================
 

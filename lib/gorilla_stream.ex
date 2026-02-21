@@ -119,6 +119,20 @@ defmodule GorillaStream do
   end
 
   @doc """
+  Compresses data using a pre-trained zstd dictionary.
+
+  See `GorillaStream.Compression.Container.compress_with_dict/2`.
+  """
+  defdelegate compress_with_dict(data, cdict), to: Container
+
+  @doc """
+  Decompresses data using a pre-trained zstd dictionary.
+
+  See `GorillaStream.Compression.Container.decompress_with_dict/2`.
+  """
+  defdelegate decompress_with_dict(data, ddict), to: Container
+
+  @doc """
   Checks if zstd compression is available.
 
   Zstd requires the optional `ezstd` package to be installed.
