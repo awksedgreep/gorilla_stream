@@ -8,7 +8,7 @@ ERTS_INCLUDE_DIR ?= $(shell erl -noshell -eval "io:format(\"~s/erts-~s/include\"
 # Fine headers
 FINE_INCLUDE_DIR ?= $(shell elixir -e "IO.write(Fine.include_dir())")
 
-# Compiler settings
+# Compiler settings — cc_precompiler sets CC/CXX/CROSSCOMPILE for cross targets
 CXX ?= c++
 CXXFLAGS = -std=c++17 -O2 -fPIC -fvisibility=hidden -Wall -Wextra -Wno-unused-parameter
 CXXFLAGS += -I$(ERTS_INCLUDE_DIR)
@@ -22,9 +22,9 @@ else
 	LDFLAGS = -shared
 endif
 
-# Sources
+# Sources — put .o in PRIV_DIR so each cross-compile target gets its own
 NIF_SRC = c_src/gorilla_nif.cpp
-NIF_OBJ = c_src/gorilla_nif.o
+NIF_OBJ = $(PRIV_DIR)/gorilla_nif.o
 
 .PHONY: all clean
 

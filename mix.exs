@@ -1,7 +1,7 @@
 defmodule GorillaStream.MixProject do
   use Mix.Project
 
-  @version "2.2.0"
+  @version "2.2.1"
 
   def project do
     [
@@ -23,6 +23,7 @@ defmodule GorillaStream.MixProject do
           "ERTS_INCLUDE_DIR" => erts_include_dir
         }
       end,
+      make_clean: ["clean"],
       make_precompiler: {:nif, CCPrecompiler},
       make_precompiler_url:
         "https://github.com/awksedgreep/gorilla_stream/releases/download/v#{@version}/@{artefact_filename}",
