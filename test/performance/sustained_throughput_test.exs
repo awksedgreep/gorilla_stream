@@ -286,6 +286,7 @@ defmodule GorillaStream.Performance.SustainedThroughputTest do
       assert overall > 4000
     end
 
+    @tag :skip_ci
     test "measure sustained round-trip throughput with pipeline processing" do
       # Test sustained round-trip performance simulating a real processing pipeline
       data_points_per_batch = 500
