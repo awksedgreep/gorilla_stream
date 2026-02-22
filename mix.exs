@@ -1,10 +1,12 @@
 defmodule GorillaStream.MixProject do
   use Mix.Project
 
+  @version "2.2.0"
+
   def project do
     [
       app: :gorilla_stream,
-      version: "2.1.0",
+      version: @version,
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       compilers: [:elixir_make] ++ Mix.compilers(),
@@ -21,6 +23,12 @@ defmodule GorillaStream.MixProject do
           "ERTS_INCLUDE_DIR" => erts_include_dir
         }
       end,
+      make_precompiler: {:nif, CCPrecompiler},
+      make_precompiler_url:
+        "https://github.com/awksedgreep/gorilla_stream/releases/download/v#{@version}/@{artefact_filename}",
+      make_precompiler_filename: "gorilla_nif",
+      make_precompiler_priv_paths: ["gorilla_nif.*"],
+      make_precompiler_nif_versions: [versions: ["2.16", "2.17"]],
       deps: deps(),
       dialyzer: dialyzer(),
       aliases: aliases(),
@@ -51,7 +59,8 @@ defmodule GorillaStream.MixProject do
       {:ex_openzl, "~> 0.4", optional: true},
       # NIF build support
       {:fine, "~> 0.1.4"},
-      {:elixir_make, "~> 0.9", runtime: false}
+      {:elixir_make, "~> 0.9", runtime: false},
+      {:cc_precompiler, "~> 0.1", runtime: false}
     ]
   end
 
@@ -59,7 +68,7 @@ defmodule GorillaStream.MixProject do
     [
       licenses: ["MIT"],
       links: %{"GitHub" => "https://github.com/awksedgreep/gorilla_stream"},
-      files: ~w(lib c_src Makefile .formatter.exs mix.exs README.md LICENSE)
+      files: ~w(lib c_src Makefile .formatter.exs mix.exs checksum.exs README.md LICENSE)
     ]
   end
 
