@@ -1,4 +1,6 @@
 defmodule GorillaStream.Compression.Container do
+  @compile {:no_warn_undefined, ExOpenzl}
+
   @moduledoc """
   Container compression utilities for GorillaStream.
 
