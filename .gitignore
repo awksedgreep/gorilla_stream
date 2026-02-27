@@ -48,5 +48,5 @@ Thumbs.db
 # NIF build artifacts
 c_src/*.o
 
-# Precompiled NIF checksums (generated at publish time, not tracked in git)
-checksum.exs
+# Precompiled NIF checksums (generated at publish time, tracked for hex publish)
+# checksum.exs
