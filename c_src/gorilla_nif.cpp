@@ -575,6 +575,208 @@ static std::vector<double> decode_values_chimp(BitReader &reader, uint32_t count
 }
 
 // ---------------------------------------------------------------------------
+// Chimp128 value compression — XOR with best of 128 previous values
+// ---------------------------------------------------------------------------
+//
+// Flags 00 and 01 reference a ring buffer entry via 7-bit index.
+// Flags 10 and 11 XOR with the most recent value (same as basic Chimp).
+// Threshold raised to 13 (6 + log2(128)).
+
+static constexpr int CHIMP128_N = 128;
+static constexpr int CHIMP128_LOG2N = 7;
+static constexpr int CHIMP128_THRESHOLD = 6 + CHIMP128_LOG2N; // 13
+static constexpr uint64_t CHIMP128_HASH_MASK = (1ULL << (CHIMP128_THRESHOLD + 1)) - 1;
+
+static ValueEncodeResult encode_values_chimp128(const std::vector<double> &values) {
+    ValueEncodeResult result;
+    result.count = values.size();
+
+    if (values.empty()) {
+        result.first_value = 0.0;
+        return result;
+    }
+
+    result.first_value = values[0];
+    uint64_t first_bits = float_to_bits(values[0]);
+    result.writer.write(first_bits, 64);
+
+    if (values.size() == 1) {
+        return result;
+    }
+
+    // Ring buffer and hash table
+    uint64_t ring[CHIMP128_N] = {};
+    int ring_indices[CHIMP128_HASH_MASK + 1];
+    memset(ring_indices, -1, sizeof(ring_indices));
+
+    ring[0] = first_bits;
+    ring_indices[first_bits & CHIMP128_HASH_MASK] = 0;
+    int ring_pos = 1;
+
+    uint64_t stored_val = first_bits;
+    int stored_leading = 65;
+
+    for (size_t i = 1; i < values.size(); i++) {
+        uint64_t curr_bits = float_to_bits(values[i]);
+
+        // Find best reference: check hash table for a previous value
+        // that produces the most trailing zeros
+        uint64_t hash_key = curr_bits & CHIMP128_HASH_MASK;
+        int candidate_idx = ring_indices[hash_key];
+
+        uint64_t xor_prev = curr_bits ^ stored_val;
+        uint64_t xor_ring = UINT64_MAX;
+        int best_ring_idx = -1;
+
+        if (candidate_idx >= 0) {
+            // Check if candidate is still in the ring window
+            int distance = ring_pos - candidate_idx;
+            if (distance < 0) distance += CHIMP128_N;
+            if (distance > 0 && distance <= CHIMP128_N) {
+                xor_ring = curr_bits ^ ring[candidate_idx % CHIMP128_N];
+                int trailing_ring = (xor_ring == 0) ? 64 : count_trailing_zeros_64(xor_ring);
+                int trailing_prev = (xor_prev == 0) ? 64 : count_trailing_zeros_64(xor_prev);
+                if (trailing_ring >= trailing_prev) {
+                    best_ring_idx = candidate_idx;
+                }
+            }
+        }
+
+        // Choose: XOR with ring entry (flags 00/01) or with previous (flags 10/11)
+        if (best_ring_idx >= 0) {
+            uint64_t xor_val = xor_ring;
+            int ref_idx = best_ring_idx % CHIMP128_N;
+
+            if (xor_val == 0) {
+                // Flag 00 — exact match with ring entry
+                result.writer.write(0b00, 2);
+                result.writer.write(static_cast<uint64_t>(ref_idx), CHIMP128_LOG2N);
+                stored_leading = 65;
+            } else {
+                int trailing = count_trailing_zeros_64(xor_val);
+                if (trailing > CHIMP128_THRESHOLD) {
+                    // Flag 01 — ring ref with trailing zeros stripped
+                    int leading = count_leading_zeros_64(xor_val);
+                    int significant = 64 - leading - trailing;
+
+                    result.writer.write(0b01, 2);
+                    result.writer.write(static_cast<uint64_t>(ref_idx), CHIMP128_LOG2N);
+                    result.writer.write(chimp_leading_repr[leading], 3);
+                    result.writer.write(static_cast<uint64_t>(significant), 6);
+                    uint64_t sig_value = (xor_val >> trailing) & bitmask(significant);
+                    result.writer.write(sig_value, significant);
+                    stored_leading = 65;
+                } else {
+                    // Ring ref doesn't help enough — fall back to previous value
+                    goto use_prev;
+                }
+            }
+        } else {
+            use_prev:
+            uint64_t xor_val = xor_prev;
+
+            if (xor_val == 0) {
+                // Flag 00 with self-reference (current ring position)
+                result.writer.write(0b00, 2);
+                result.writer.write(static_cast<uint64_t>((ring_pos - 1) % CHIMP128_N), CHIMP128_LOG2N);
+                stored_leading = 65;
+            } else {
+                int leading = count_leading_zeros_64(xor_val);
+
+                if (leading == stored_leading) {
+                    // Flag 10 — reuse leading context
+                    int raw_bits = 64 - stored_leading;
+                    uint64_t raw_value = xor_val & bitmask(raw_bits);
+                    result.writer.write(0b10, 2);
+                    result.writer.write(raw_value, raw_bits);
+                } else {
+                    // Flag 11 — new leading context
+                    int rounded_leading = chimp_leading_round[leading];
+                    int raw_bits = 64 - rounded_leading;
+                    uint64_t raw_value = xor_val & bitmask(raw_bits);
+                    result.writer.write(0b11, 2);
+                    result.writer.write(chimp_leading_repr[leading], 3);
+                    result.writer.write(raw_value, raw_bits);
+                    stored_leading = rounded_leading;
+                }
+            }
+        }
+
+        // Update ring buffer and hash table
+        ring[ring_pos % CHIMP128_N] = curr_bits;
+        ring_indices[curr_bits & CHIMP128_HASH_MASK] = ring_pos;
+        ring_pos++;
+        stored_val = curr_bits;
+    }
+
+    return result;
+}
+
+// Chimp128 value decoder
+static std::vector<double> decode_values_chimp128(BitReader &reader, uint32_t count) {
+    std::vector<double> values;
+    values.reserve(count);
+
+    if (count == 0) return values;
+
+    uint64_t first_bits = reader.read(64);
+    values.push_back(bits_to_float(first_bits));
+    if (count == 1) return values;
+
+    uint64_t ring[CHIMP128_N] = {};
+    ring[0] = first_bits;
+    int ring_pos = 1;
+
+    uint64_t stored_val = first_bits;
+    int stored_leading = 65;
+
+    for (uint32_t i = 1; i < count; i++) {
+        uint64_t flag = reader.read(2);
+        uint64_t new_bits;
+
+        if (flag == 0b00) {
+            // Exact match with ring entry
+            uint64_t idx = reader.read(CHIMP128_LOG2N);
+            new_bits = ring[idx];
+            stored_leading = 65;
+        } else if (flag == 0b01) {
+            // Ring ref with trailing zeros stripped
+            uint64_t idx = reader.read(CHIMP128_LOG2N);
+            uint64_t lead_code = reader.read(3);
+            int leading = chimp_leading_decode[lead_code];
+            uint64_t significant = reader.read(6);
+            if (significant == 0) significant = 64;
+            int trailing = 64 - leading - static_cast<int>(significant);
+            if (trailing < 0) trailing = 0;
+            uint64_t sig_value = reader.read(static_cast<int>(significant));
+            uint64_t xor_val = sig_value << trailing;
+            new_bits = ring[idx] ^ xor_val;
+            stored_leading = 65;
+        } else if (flag == 0b10) {
+            // Reuse leading context, XOR with previous
+            int raw_bits = 64 - stored_leading;
+            uint64_t raw_value = reader.read(raw_bits);
+            new_bits = stored_val ^ raw_value;
+        } else {
+            // Flag 11 — new leading context, XOR with previous
+            uint64_t lead_code = reader.read(3);
+            int leading = chimp_leading_decode[lead_code];
+            int raw_bits = 64 - leading;
+            uint64_t raw_value = reader.read(raw_bits);
+            new_bits = stored_val ^ raw_value;
+            stored_leading = leading;
+        }
+
+        values.push_back(bits_to_float(new_bits));
+        ring[ring_pos % CHIMP128_N] = new_bits;
+        ring_pos++;
+        stored_val = new_bits;
+    }
+
+    return values;
+}
+
+// ---------------------------------------------------------------------------
 // Inner header (32 bytes) — matches BitPacking.pack/2
 // ---------------------------------------------------------------------------
 // Layout (all big-endian):
@@ -753,6 +955,7 @@ static auto atom_is_counter = fine::Atom("is_counter");
 static auto atom_scale_decimals = fine::Atom("scale_decimals");
 static auto atom_algorithm = fine::Atom("algorithm");
 static auto atom_chimp = fine::Atom("chimp");
+static auto atom_chimp128 = fine::Atom("chimp128");
 
 // Fast manual data + opts parsing to avoid FINE's variant/vector overhead
 static fine::Ok<ErlNifBinary>
@@ -810,6 +1013,7 @@ nif_gorilla_encode(ErlNifEnv *env,
     bool vm_enabled = false;
     bool is_counter = false;
     bool use_chimp = false;
+    bool use_chimp128 = false;
     int scale_n = -1;  // -1 means :auto when vm_enabled
 
     ERL_NIF_TERM opt_val;
@@ -831,9 +1035,10 @@ nif_gorilla_encode(ErlNifEnv *env,
     }
     if (enif_get_map_value(env, opts_term,
             fine::encode(env, atom_algorithm), &opt_val)) {
-        // Check if it's the :chimp atom
         if (enif_is_identical(opt_val, fine::encode(env, atom_chimp))) {
             use_chimp = true;
+        } else if (enif_is_identical(opt_val, fine::encode(env, atom_chimp128))) {
+            use_chimp128 = true;
         }
     }
 
@@ -863,14 +1068,18 @@ nif_gorilla_encode(ErlNifEnv *env,
     auto ts_result = encode_timestamps(timestamps);
     size_t ts_bit_len = ts_result.writer.total_bits();
 
-    // Encode values — Gorilla or Chimp
-    auto val_result = use_chimp ? encode_values_chimp(values) : encode_values(values);
-    size_t val_bit_len = val_result.writer.total_bits();
-
-    // Flag bit 2 (0x4) indicates Chimp encoding
-    if (use_chimp) {
-        flags |= 0x4;
+    // Encode values — Gorilla, Chimp, or Chimp128
+    ValueEncodeResult val_result;
+    if (use_chimp128) {
+        val_result = encode_values_chimp128(values);
+        flags |= 0x8; // bit 3 = Chimp128
+    } else if (use_chimp) {
+        val_result = encode_values_chimp(values);
+        flags |= 0x4; // bit 2 = Chimp
+    } else {
+        val_result = encode_values(values);
     }
+    size_t val_bit_len = val_result.writer.total_bits();
 
     // Build inner header
     uint64_t first_value_bits = float_to_bits(val_result.first_value);
@@ -1206,10 +1415,14 @@ nif_gorilla_decode(ErlNifEnv *env, ErlNifBinary data)
     }
 
     // Dispatch value decoding based on algorithm flag
-    bool use_chimp_decode = (flags & 0x4) != 0;
-    auto values = use_chimp_decode
-        ? decode_values_chimp(val_reader, count)
-        : decode_values(val_reader, count);
+    std::vector<double> values;
+    if (flags & 0x8) {
+        values = decode_values_chimp128(val_reader, count);
+    } else if (flags & 0x4) {
+        values = decode_values_chimp(val_reader, count);
+    } else {
+        values = decode_values(val_reader, count);
+    }
 
     // VM postprocessing
     bool vm_enabled = (flags & 0x1) != 0;

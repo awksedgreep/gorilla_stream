@@ -116,4 +116,102 @@ defmodule GorillaStream.ChimpTest do
       assert decompressed == data
     end
   end
+
+  describe "Chimp128 compression" do
+    test "roundtrip with basic data" do
+      data = for i <- 0..99 do
+        {1_700_000_000 + i * 15, Float.round(45.0 + :math.sin(i / 10) * 15, 2)}
+      end
+
+      {:ok, compressed} = GorillaStream.compress(data, algorithm: :chimp128)
+      {:ok, decompressed} = GorillaStream.decompress(compressed)
+
+      assert decompressed == data
+    end
+
+    test "roundtrip with constant values" do
+      data = for i <- 0..49, do: {1_700_000_000 + i * 60, 42.0}
+
+      {:ok, compressed} = GorillaStream.compress(data, algorithm: :chimp128)
+      {:ok, decompressed} = GorillaStream.decompress(compressed)
+
+      assert decompressed == data
+    end
+
+    test "roundtrip with random floats" do
+      :rand.seed(:exsss, {42, 42, 42})
+      data = for i <- 0..999, do: {1_700_000_000 + i * 15, :rand.uniform() * 1000.0}
+
+      {:ok, compressed} = GorillaStream.compress(data, algorithm: :chimp128)
+      {:ok, decompressed} = GorillaStream.decompress(compressed)
+
+      assert decompressed == data
+    end
+
+    test "roundtrip with single and two points" do
+      for n <- [1, 2] do
+        data = for i <- 0..(n - 1), do: {1_700_000_000 + i * 15, 42.0 + i}
+
+        {:ok, compressed} = GorillaStream.compress(data, algorithm: :chimp128)
+        {:ok, decompressed} = GorillaStream.decompress(compressed)
+
+        assert decompressed == data, "Failed for #{n} points"
+      end
+    end
+
+    test "roundtrip with repeating patterns (ring buffer benefit)" do
+      # Values that repeat — ring buffer should find exact matches
+      pattern = [10.0, 20.0, 30.0, 40.0, 50.0]
+
+      data =
+        for i <- 0..499 do
+          {1_700_000_000 + i * 15, Enum.at(pattern, rem(i, length(pattern)))}
+        end
+
+      {:ok, compressed} = GorillaStream.compress(data, algorithm: :chimp128)
+      {:ok, decompressed} = GorillaStream.decompress(compressed)
+
+      assert decompressed == data
+    end
+
+    test "chimp128 compresses repeating patterns better than gorilla" do
+      pattern = [10.0, 20.0, 30.0, 40.0, 50.0]
+
+      data =
+        for i <- 0..999 do
+          {1_700_000_000 + i * 15, Enum.at(pattern, rem(i, length(pattern)))}
+        end
+
+      {:ok, gorilla} = GorillaStream.compress(data)
+      {:ok, chimp128} = GorillaStream.compress(data, algorithm: :chimp128)
+
+      gorilla_bpp = byte_size(gorilla) / 1000
+      chimp128_bpp = byte_size(chimp128) / 1000
+
+      assert chimp128_bpp < gorilla_bpp,
+        "Chimp128 (#{Float.round(chimp128_bpp, 2)} B/pt) should beat Gorilla (#{Float.round(gorilla_bpp, 2)} B/pt) on repeating patterns"
+    end
+
+    test "chimp128 with zstd container" do
+      data = for i <- 0..999 do
+        {1_700_000_000 + i * 15, Float.round(45.0 + :math.sin(i / 50) * 15, 2)}
+      end
+
+      {:ok, compressed} = GorillaStream.compress(data, algorithm: :chimp128, compression: :zstd)
+      {:ok, decompressed} = GorillaStream.decompress(compressed, compression: :zstd)
+
+      assert decompressed == data
+    end
+
+    test "all three algorithms decompress correctly" do
+      data = for i <- 0..99, do: {1_700_000_000 + i * 15, i * 1.5}
+
+      for algo <- [nil, :chimp, :chimp128] do
+        opts = if algo, do: [algorithm: algo], else: []
+        {:ok, compressed} = GorillaStream.compress(data, opts)
+        {:ok, decompressed} = GorillaStream.decompress(compressed)
+        assert decompressed == data, "Failed for algorithm: #{inspect(algo)}"
+      end
+    end
+  end
 end
