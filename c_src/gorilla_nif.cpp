@@ -409,6 +409,172 @@ static ValueEncodeResult encode_values(const std::vector<double> &values) {
 }
 
 // ---------------------------------------------------------------------------
+// Chimp value compression (VLDB 2022)
+// ---------------------------------------------------------------------------
+//
+// 4-case encoding with uniform 2-bit flags:
+//   00 — XOR is zero (identical value)
+//   01 — trailing zeros > 6: 3-bit leading bucket + 6-bit sig count + sig bits
+//   10 — same leading context: (64 - storedLeading) bits of raw XOR
+//   11 — new leading context: 3-bit leading bucket + (64 - roundedLeading) bits
+
+static constexpr int CHIMP_TRAILING_THRESHOLD = 6;
+
+// Maps actual leading zero count → 3-bit bucket code
+static constexpr uint8_t chimp_leading_repr[65] = {
+    0,0,0,0,0,0,0,0,  // 0-7 → 0
+    1,1,1,1,           // 8-11 → 1
+    2,2,2,2,           // 12-15 → 2
+    3,3,               // 16-17 → 3
+    4,4,               // 18-19 → 4
+    5,5,               // 20-21 → 5
+    6,6,               // 22-23 → 6
+    7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7  // 24-64 → 7
+};
+
+// Maps actual leading zero count → rounded-down bucket boundary
+static constexpr int chimp_leading_round[65] = {
+    0,0,0,0,0,0,0,0,   // 0-7 → 0
+    8,8,8,8,            // 8-11 → 8
+    12,12,12,12,        // 12-15 → 12
+    16,16,              // 16-17 → 16
+    18,18,              // 18-19 → 18
+    20,20,              // 20-21 → 20
+    22,22,              // 22-23 → 22
+    24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24  // 24-64 → 24
+};
+
+// Decode: 3-bit bucket code → actual leading zero count
+static constexpr int chimp_leading_decode[8] = {0, 8, 12, 16, 18, 20, 22, 24};
+
+static ValueEncodeResult encode_values_chimp(const std::vector<double> &values) {
+    ValueEncodeResult result;
+    result.count = values.size();
+
+    if (values.empty()) {
+        result.first_value = 0.0;
+        return result;
+    }
+
+    result.first_value = values[0];
+    uint64_t first_bits = float_to_bits(values[0]);
+    result.writer.write(first_bits, 64);
+
+    if (values.size() == 1) {
+        return result;
+    }
+
+    uint64_t prev_bits = first_bits;
+    int stored_leading = 65; // sentinel — forces flag 11 on first non-zero XOR
+
+    for (size_t i = 1; i < values.size(); i++) {
+        uint64_t curr_bits = float_to_bits(values[i]);
+        uint64_t xor_val = curr_bits ^ prev_bits;
+
+        if (xor_val == 0) {
+            // Flag 00 — identical value
+            result.writer.write(0b00, 2);
+            stored_leading = 65; // reset context
+        } else {
+            int leading = count_leading_zeros_64(xor_val);
+            int trailing = count_trailing_zeros_64(xor_val);
+
+            if (trailing > CHIMP_TRAILING_THRESHOLD) {
+                // Flag 01 — strip trailing zeros
+                int significant = 64 - leading - trailing;
+                int rounded_leading = chimp_leading_round[leading];
+                uint64_t sig_value = (xor_val >> trailing) & bitmask(significant);
+
+                result.writer.write(0b01, 2);
+                result.writer.write(chimp_leading_repr[leading], 3);
+                result.writer.write(static_cast<uint64_t>(significant), 6);
+                result.writer.write(sig_value, significant);
+
+                stored_leading = 65; // reset context
+            } else if (leading == stored_leading) {
+                // Flag 10 — reuse leading context
+                int raw_bits = 64 - stored_leading;
+                uint64_t raw_value = xor_val & bitmask(raw_bits);
+                result.writer.write(0b10, 2);
+                result.writer.write(raw_value, raw_bits);
+                // stored_leading unchanged
+            } else {
+                // Flag 11 — new leading context
+                int rounded_leading = chimp_leading_round[leading];
+                int raw_bits = 64 - rounded_leading;
+                uint64_t raw_value = xor_val & bitmask(raw_bits);
+
+                result.writer.write(0b11, 2);
+                result.writer.write(chimp_leading_repr[leading], 3);
+                result.writer.write(raw_value, raw_bits);
+
+                stored_leading = rounded_leading;
+            }
+        }
+
+        prev_bits = curr_bits;
+    }
+
+    return result;
+}
+
+// Chimp value decoder — reads from the same bitstream position as Gorilla
+static std::vector<double> decode_values_chimp(BitReader &reader, uint32_t count) {
+    std::vector<double> values;
+    values.reserve(count);
+
+    if (count == 0) return values;
+
+    uint64_t first_bits = reader.read(64);
+    values.push_back(bits_to_float(first_bits));
+    if (count == 1) return values;
+    uint64_t prev_bits = first_bits;
+    int stored_leading = 65;
+
+    for (size_t i = 1; i < count; i++) {
+        uint64_t flag = reader.read(2);
+
+        if (flag == 0b00) {
+            // Identical value
+            values.push_back(bits_to_float(prev_bits));
+            stored_leading = 65;
+        } else if (flag == 0b01) {
+            // Trailing zeros stripped
+            uint64_t lead_code = reader.read(3);
+            int leading = chimp_leading_decode[lead_code];
+            uint64_t significant = reader.read(6);
+            if (significant == 0) significant = 64;
+            int trailing = 64 - leading - static_cast<int>(significant);
+            if (trailing < 0) trailing = 0;
+            uint64_t sig_value = reader.read(static_cast<int>(significant));
+            uint64_t xor_val = sig_value << trailing;
+            prev_bits = prev_bits ^ xor_val;
+            values.push_back(bits_to_float(prev_bits));
+            stored_leading = 65;
+        } else if (flag == 0b10) {
+            // Reuse leading context
+            int raw_bits = 64 - stored_leading;
+            uint64_t raw_value = reader.read(raw_bits);
+            uint64_t xor_val = raw_value; // lower bits only, upper are zero (leading zeros)
+            prev_bits = prev_bits ^ xor_val;
+            values.push_back(bits_to_float(prev_bits));
+        } else {
+            // Flag 11 — new leading context
+            uint64_t lead_code = reader.read(3);
+            int leading = chimp_leading_decode[lead_code];
+            int raw_bits = 64 - leading;
+            uint64_t raw_value = reader.read(raw_bits);
+            uint64_t xor_val = raw_value;
+            prev_bits = prev_bits ^ xor_val;
+            values.push_back(bits_to_float(prev_bits));
+            stored_leading = leading;
+        }
+    }
+
+    return values;
+}
+
+// ---------------------------------------------------------------------------
 // Inner header (32 bytes) — matches BitPacking.pack/2
 // ---------------------------------------------------------------------------
 // Layout (all big-endian):
@@ -585,6 +751,8 @@ static std::vector<double> delta_decode_counter(const std::vector<double> &value
 static auto atom_victoria_metrics = fine::Atom("victoria_metrics");
 static auto atom_is_counter = fine::Atom("is_counter");
 static auto atom_scale_decimals = fine::Atom("scale_decimals");
+static auto atom_algorithm = fine::Atom("algorithm");
+static auto atom_chimp = fine::Atom("chimp");
 
 // Fast manual data + opts parsing to avoid FINE's variant/vector overhead
 static fine::Ok<ErlNifBinary>
@@ -641,6 +809,7 @@ nif_gorilla_encode(ErlNifEnv *env,
     // Parse options map manually
     bool vm_enabled = false;
     bool is_counter = false;
+    bool use_chimp = false;
     int scale_n = -1;  // -1 means :auto when vm_enabled
 
     ERL_NIF_TERM opt_val;
@@ -659,6 +828,13 @@ nif_gorilla_encode(ErlNifEnv *env,
             scale_n = static_cast<int>(sval);
         }
         // else :auto → stays -1
+    }
+    if (enif_get_map_value(env, opts_term,
+            fine::encode(env, atom_algorithm), &opt_val)) {
+        // Check if it's the :chimp atom
+        if (enif_is_identical(opt_val, fine::encode(env, atom_chimp))) {
+            use_chimp = true;
+        }
     }
 
     // VM preprocessing
@@ -687,9 +863,14 @@ nif_gorilla_encode(ErlNifEnv *env,
     auto ts_result = encode_timestamps(timestamps);
     size_t ts_bit_len = ts_result.writer.total_bits();
 
-    // Encode values
-    auto val_result = encode_values(values);
+    // Encode values — Gorilla or Chimp
+    auto val_result = use_chimp ? encode_values_chimp(values) : encode_values(values);
     size_t val_bit_len = val_result.writer.total_bits();
+
+    // Flag bit 2 (0x4) indicates Chimp encoding
+    if (use_chimp) {
+        flags |= 0x4;
+    }
 
     // Build inner header
     uint64_t first_value_bits = float_to_bits(val_result.first_value);
@@ -1024,7 +1205,11 @@ nif_gorilla_decode(ErlNifEnv *env, ErlNifBinary data)
         val_reader.read_bit();
     }
 
-    auto values = decode_values(val_reader, count);
+    // Dispatch value decoding based on algorithm flag
+    bool use_chimp_decode = (flags & 0x4) != 0;
+    auto values = use_chimp_decode
+        ? decode_values_chimp(val_reader, count)
+        : decode_values(val_reader, count);
 
     // VM postprocessing
     bool vm_enabled = (flags & 0x1) != 0;
