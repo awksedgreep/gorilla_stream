@@ -1,7 +1,7 @@
 defmodule GorillaStream.MixProject do
   use Mix.Project
 
-  @version "2.2.4"
+  @version "3.0.0"
 
   def project do
     [
