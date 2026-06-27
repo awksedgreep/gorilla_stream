@@ -6,6 +6,8 @@ defmodule GorillaStream.Validator do
   data before compression.
   """
 
+  @max_finite_float 1.7976931348623157e308
+
   @doc """
   Validates time series data and reports any issues.
 
@@ -126,11 +128,10 @@ defmodule GorillaStream.Validator do
   defp validate_point(_), do: {:error, :invalid_format}
 
   defp is_finite_number(value) when is_float(value) do
-    not (value != value or value == :infinity or value == :neg_infinity)
+    value == value and value > -@max_finite_float and value < @max_finite_float
   end
 
   defp is_finite_number(value) when is_integer(value), do: true
-  defp is_finite_number(_), do: false
 
   defp check_timestamp_ordering(data, issues) do
     timestamps = Enum.map(data, fn {ts, _} -> ts end)

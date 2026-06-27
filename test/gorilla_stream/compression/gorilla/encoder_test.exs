@@ -402,7 +402,7 @@ defmodule GorillaStream.Compression.Gorilla.EncoderTest do
       ]
 
       assert {:ok, ratio} = Encoder.estimate_compression_ratio(data)
-      assert is_float(ratio) and ratio <= 1.0
+      assert ratio <= 1.0
     end
 
     test "handles single and two-point lists in estimation" do

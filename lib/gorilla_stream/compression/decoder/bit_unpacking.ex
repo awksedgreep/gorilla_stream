@@ -104,12 +104,12 @@ defmodule GorillaStream.Compression.Decoder.BitUnpacking do
         if remaining_bits >= total_bits do
           # Extract all remaining data as bitstring, then take what we need
           <<all_bits::bitstring>> = remaining_data
-          <<data_bits::bitstring-size(total_bits), _padding::bitstring>> = all_bits
+          <<data_bits::bitstring-size(^total_bits), _padding::bitstring>> = all_bits
 
           # Split into timestamp and value components
           <<
-            timestamp_bits::bitstring-size(timestamp_bits_len),
-            value_bits::bitstring-size(value_bits_len)
+            timestamp_bits::bitstring-size(^timestamp_bits_len),
+            value_bits::bitstring-size(^value_bits_len)
           >> = data_bits
 
           {:ok, timestamp_bits, value_bits}

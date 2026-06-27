@@ -175,7 +175,7 @@ defmodule GorillaStream.Compression.Decoder.Metadata do
       value_metadata: value_metadata
     }
 
-    <<compressed_data::binary-size(compressed_size), _rest::binary>> = data
+    <<compressed_data::binary-size(^compressed_size), _rest::binary>> = data
     {:ok, metadata, compressed_data}
   end
 

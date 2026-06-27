@@ -28,10 +28,6 @@ defmodule GorillaStream.Compression.Encoder.DeltaEncoding do
     {:error, "Input must be a list of integers"}
   end
 
-  def encode(timestamps) when not is_list(timestamps) do
-    {:error, "Input must be a list of integers"}
-  end
-
   def encode([]), do: {<<>>, %{count: 0}}
 
   def encode([timestamp]) when is_integer(timestamp) do

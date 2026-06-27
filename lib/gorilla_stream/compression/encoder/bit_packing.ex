@@ -161,11 +161,11 @@ defmodule GorillaStream.Compression.Encoder.BitPacking do
         total_data_bytes = div(total_data_bits + 7, 8)
 
         if byte_size(remaining) >= total_data_bytes do
-          <<data_bits::bitstring-size(total_data_bits), _padding::binary>> = remaining
+          <<data_bits::bitstring-size(^total_data_bits), _padding::binary>> = remaining
 
           <<
-            timestamp_bits::bitstring-size(timestamp_bits_len),
-            value_bits::bitstring-size(value_bits_len)
+            timestamp_bits::bitstring-size(^timestamp_bits_len),
+            value_bits::bitstring-size(^value_bits_len)
           >> = data_bits
 
           # Reconstruct metadata

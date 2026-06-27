@@ -26,12 +26,13 @@ defmodule GorillaStream.Compression.Encoder.BitWriter do
   @spec write_bits(t(), bitstring()) :: t()
   def write_bits(%__MODULE__{} = w, bits) when is_bitstring(bits) do
     size = bit_size(bits)
-    <<value::size(size)>> = bits
+    <<value::size(^size)>> = bits
     write(w, value, size)
   end
 
   defp flush(%__MODULE__{bits: bits} = w) when bits >= 8 do
-    <<byte::8, rest::size(bits - 8)>> = <<w.buf::size(bits)>>
+    rest_bits = bits - 8
+    <<byte::8, rest::size(^rest_bits)>> = <<w.buf::size(bits)>>
     flush(%{w | acc: [w.acc, byte], buf: rest, bits: bits - 8})
   end
 

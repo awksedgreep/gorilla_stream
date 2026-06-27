@@ -188,7 +188,7 @@ defmodule GorillaStream.Compression.Gorilla.DecoderTest do
 
       # Truncate the data
       truncated_size = div(byte_size(encoded_data), 2)
-      <<truncated_data::binary-size(truncated_size), _rest::binary>> = encoded_data
+      <<truncated_data::binary-size(^truncated_size), _rest::binary>> = encoded_data
 
       # Truncated data may result in empty data extraction
       assert {:ok, []} = Decoder.decode(truncated_data)
@@ -269,7 +269,7 @@ defmodule GorillaStream.Compression.Gorilla.DecoderTest do
 
       # Truncate the data
       truncated_size = div(byte_size(encoded_data), 3)
-      <<truncated_data::binary-size(truncated_size), _rest::binary>> = encoded_data
+      <<truncated_data::binary-size(^truncated_size), _rest::binary>> = encoded_data
 
       # Validation may pass or fail depending on how truncation affects metadata
       case Decoder.validate_compressed_data(truncated_data) do
@@ -1023,7 +1023,7 @@ defmodule GorillaStream.Compression.Gorilla.DecoderTest do
     safe_length = min(length, data_size - safe_start)
 
     if safe_length > 0 do
-      <<prefix::binary-size(safe_start), _corrupted::binary-size(safe_length), suffix::binary>> =
+      <<prefix::binary-size(^safe_start), _corrupted::binary-size(^safe_length), suffix::binary>> =
         data
 
       corrupted_bytes = :binary.copy(<<255>>, safe_length)

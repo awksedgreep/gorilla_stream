@@ -130,7 +130,7 @@ defmodule GorillaStream.Compression.Decoder.ValueDecompression do
 
     if meaningful_length > 0 do
       case rest do
-        <<meaningful_value::size(meaningful_length), remaining_bits::bitstring>> ->
+        <<meaningful_value::size(^meaningful_length), remaining_bits::bitstring>> ->
           # Reconstruct XOR result
           xor_result = meaningful_value <<< state.prev_trailing_zeros
 
@@ -163,7 +163,7 @@ defmodule GorillaStream.Compression.Decoder.ValueDecompression do
 
         if meaningful_length > 0 and meaningful_length <= 64 do
           case remaining_bits do
-            <<meaningful_value::size(meaningful_length), final_bits::bitstring>> ->
+            <<meaningful_value::size(^meaningful_length), final_bits::bitstring>> ->
               # Calculate trailing zeros
               trailing_zeros = 64 - leading_zeros - meaningful_length
 
