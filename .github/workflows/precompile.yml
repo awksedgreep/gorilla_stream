@@ -24,19 +24,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Erlang & Elixir (Linux)
-        if: runner.os == 'Linux'
+      - name: Normalize ARM Linux image name
+        if: matrix.runner == 'ubuntu-24.04-arm'
+        run: echo "ImageOS=ubuntu24" >> "$GITHUB_ENV"
+
+      - name: Install Erlang & Elixir
         uses: erlef/setup-beam@v1
         with:
           otp-version: "27"
           elixir-version: "1.19"
-
-      - name: Install Erlang & Elixir (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          brew install erlang elixir
-          mix local.hex --force
-          mix local.rebar --force
 
       - name: Fetch dependencies
         run: mix deps.get
